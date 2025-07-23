@@ -21,35 +21,49 @@ public partial class App : System.Windows.Application
 
     protected override async void OnStartup(StartupEventArgs e)
     {
-        base.OnStartup(e);
+        try
+        {
+            base.OnStartup(e);
 
-        // Configure services
-        var services = new ServiceCollection();
-        ConfigureServices(services);
-        _serviceProvider = services.BuildServiceProvider();
+            // Configure services
+            var services = new ServiceCollection();
+            ConfigureServices(services);
+            _serviceProvider = services.BuildServiceProvider();
 
-        // Initialize database
-        await InitializeDatabaseAsync();
+            // Initialize database
+            await InitializeDatabaseAsync();
 
-        // Load configuration
-        var configService = _serviceProvider.GetRequiredService<IConfigurationService>();
-        await configService.LoadSettingsAsync();
+            // Load configuration
+            var configService = _serviceProvider.GetRequiredService<IConfigurationService>();
+            await configService.LoadSettingsAsync();
 
-        // Load theme
-        LoadTheme(configService.AppSettings.Theme);
+            // Load theme
+            LoadTheme(configService.AppSettings.Theme);
 
-        // Initialize system tray
-        _systemTrayService = _serviceProvider.GetRequiredService<ISystemTrayService>();
-        _systemTrayService.Initialize();
-        _systemTrayService.MainWindowRequested += OnMainWindowRequested;
-        _systemTrayService.ExitRequested += OnExitRequested;
+            // Initialize system tray
+            _systemTrayService = _serviceProvider.GetRequiredService<ISystemTrayService>();
+            _systemTrayService.Initialize();
+            _systemTrayService.MainWindowRequested += OnMainWindowRequested;
+            _systemTrayService.ExitRequested += OnExitRequested;
 
-        // Initialize application service (starts timers and task prompting)
-        var applicationService = _serviceProvider.GetRequiredService<IApplicationService>();
-        await applicationService.InitializeAsync();
+            // Don't show main window initially - app runs in system tray
+            ShutdownMode = System.Windows.ShutdownMode.OnExplicitShutdown;
 
-        // Don't show main window initially - app runs in system tray
-        ShutdownMode = System.Windows.ShutdownMode.OnExplicitShutdown;
+            // Initialize application service (starts timers and task prompting)
+            var applicationService = _serviceProvider.GetRequiredService<IApplicationService>();
+            await applicationService.InitializeAsync();
+        }
+        catch (Exception ex)
+        {
+            System.Windows.MessageBox.Show(
+                $"Fatal error during application startup:\n\n{ex.Message}\n\nStack trace:\n{ex.StackTrace}",
+                "Startup Error",
+                System.Windows.MessageBoxButton.OK,
+                System.Windows.MessageBoxImage.Error);
+            
+            // Exit the application gracefully
+            Environment.Exit(1);
+        }
     }
 
     private void ConfigureServices(IServiceCollection services)
@@ -86,13 +100,6 @@ public partial class App : System.Windows.Application
         services.AddTransient<JiraTasksViewModel>();
         services.AddTransient<SummaryViewModel>();
         services.AddTransient<TaskPromptViewModel>();
-        
-        // Views
-        services.AddTransient<MainWindow>(provider =>
-        {
-            var viewModel = provider.GetRequiredService<MainViewModel>();
-            return new MainWindow(viewModel);
-        });
     }
 
     private async Task InitializeDatabaseAsync()
@@ -123,23 +130,23 @@ public partial class App : System.Windows.Application
 
     private void OnMainWindowRequested(object? sender, EventArgs e)
     {
-        var mainWindow = _serviceProvider.GetRequiredService<MainWindow>();
-        mainWindow.Show();
-        mainWindow.Activate();
+        var applicationService = _serviceProvider.GetRequiredService<IApplicationService>();
+        applicationService.ShowMainWindow();
     }
 
     private async void OnExitRequested(object? sender, EventArgs e)
     {
-        // Stop any active time tracking
-        using var scope = _serviceProvider.CreateScope();
-        var timeTrackingService = scope.ServiceProvider.GetRequiredService<ITimeTrackingService>();
-        await timeTrackingService.StopTrackingAsync();
-
-        // Save configuration
-        var configService = _serviceProvider.GetRequiredService<IConfigurationService>();
-        await configService.SaveSettingsAsync();
-
-        Shutdown();
+        try
+        {
+            var applicationService = _serviceProvider.GetRequiredService<IApplicationService>();
+            await applicationService.ExitApplicationAsync();
+        }
+        catch (Exception ex)
+        {
+            // Fallback if service method fails
+            System.Diagnostics.Debug.WriteLine($"Error in OnExitRequested: {ex.Message}");
+            Shutdown();
+        }
     }
 
     protected override void OnExit(ExitEventArgs e)

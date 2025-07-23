@@ -14,6 +14,8 @@ public class MainViewModel : ViewModelBase
     private string _currentTaskDisplay = "No task selected";
     private string _statusText = "Ready";
 
+    public event EventHandler? HideWindowRequested;
+
     public MainViewModel(
         ISystemTrayService systemTrayService,
         ITimeTrackingService timeTrackingService,
@@ -32,7 +34,7 @@ public class MainViewModel : ViewModelBase
         ShowJiraTasksCommand = new RelayCommand(ShowJiraTasks);
         MinimizeToTrayCommand = new RelayCommand(MinimizeToTray);
         ExitApplicationCommand = new AsyncRelayCommand(ExitApplication);
-        TestTaskPromptCommand = new AsyncRelayCommand(TestTaskPrompt);
+        TestTaskPromptCommand = new RelayCommand(TestTaskPrompt);
     }
 
     public string TrackingStatus
@@ -114,10 +116,10 @@ public class MainViewModel : ViewModelBase
         }
     }
 
-    private void ShowSummary()
+    private async void ShowSummary()
     {
         StatusText = "Opening Summary window...";
-        _applicationService.ShowSummaryWindow();
+        await _applicationService.ShowSummaryWindow();
     }
 
     private void ShowSettings()
@@ -140,11 +142,8 @@ public class MainViewModel : ViewModelBase
 
     private void MinimizeToTray()
     {
-        // Hide the main window - it will minimize to tray
-        if (System.Windows.Application.Current.MainWindow != null)
-        {
-            System.Windows.Application.Current.MainWindow.Hide();
-        }
+        // Trigger event for the window to hide itself
+        HideWindowRequested?.Invoke(this, EventArgs.Empty);
         StatusText = "Minimized to system tray";
     }
 
@@ -152,28 +151,23 @@ public class MainViewModel : ViewModelBase
     {
         try
         {
-            // Stop any active tracking
-            await _timeTrackingService.StopTrackingAsync();
-            
-            // Save configuration
-            await _configurationService.SaveSettingsAsync();
-            
-            // Exit the application
-            System.Windows.Application.Current.Shutdown();
+            await _applicationService.ExitApplicationAsync();
         }
         catch (Exception ex)
         {
             StatusText = $"Error during exit: {ex.Message}";
+            // Force exit even if there's an error
+            System.Windows.Application.Current.Shutdown();
         }
     }
     
-    private async Task TestTaskPrompt()
+    private void TestTaskPrompt()
     {
         System.Diagnostics.Debug.WriteLine("=== Manual task prompt test triggered ===");
         StatusText = "Testing task prompt...";
         try
         {
-            await _applicationService.ShowTaskPromptAsync();
+            _applicationService.ShowTaskPrompt();
             StatusText = "Task prompt test completed";
         }
         catch (Exception ex)

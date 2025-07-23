@@ -189,23 +189,36 @@ public class TaskPromptViewModel : ViewModelBase
     {
         try
         {
+            System.Diagnostics.Debug.WriteLine("TaskPromptViewModel.Confirm() called");
             StopTimeoutTimer();
 
             if (IsLunchMode)
             {
+                System.Diagnostics.Debug.WriteLine($"Starting lunch break for {LunchDuration} minutes");
                 LunchStarted?.Invoke(this, new LunchStartedEventArgs(LunchDuration));
             }
             else if (SelectedTask != null)
             {
+                System.Diagnostics.Debug.WriteLine($"Switching to task: {SelectedTask.Summary} (ID: {SelectedTask.Id})");
+                
                 // Switch to the selected task
                 await _timeTrackingService.SwitchTaskAsync(SelectedTask.Id);
+                System.Diagnostics.Debug.WriteLine("Task switch completed successfully");
+                
                 TaskSelected?.Invoke(this, new TaskSelectedEventArgs(SelectedTask));
+                System.Diagnostics.Debug.WriteLine("TaskSelected event fired");
+            }
+            else
+            {
+                System.Diagnostics.Debug.WriteLine("No task selected in Confirm()");
             }
         }
         catch (Exception ex)
         {
+            System.Diagnostics.Debug.WriteLine($"Error in TaskPromptViewModel.Confirm(): {ex.Message}");
+            System.Diagnostics.Debug.WriteLine($"Stack trace: {ex.StackTrace}");
             System.Windows.MessageBox.Show(
-                $"Error confirming selection: {ex.Message}",
+                $"Error confirming selection:\n\n{ex.Message}\n\nStack trace:\n{ex.StackTrace}",
                 "Error",
                 System.Windows.MessageBoxButton.OK,
                 System.Windows.MessageBoxImage.Error);

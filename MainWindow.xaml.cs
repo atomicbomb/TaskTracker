@@ -19,6 +19,14 @@ public partial class MainWindow : Window
     {
         _viewModel = viewModel;
         DataContext = _viewModel;
+        
+        // Subscribe to the hide window event
+        _viewModel.HideWindowRequested += OnHideWindowRequested;
+    }
+
+    private void OnHideWindowRequested(object? sender, EventArgs e)
+    {
+        Hide();
     }
 
     protected override async void OnSourceInitialized(EventArgs e)

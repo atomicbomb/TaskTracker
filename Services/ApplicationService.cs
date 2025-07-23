@@ -12,8 +12,9 @@ public interface IApplicationService
     void ShowSettingsWindow();
     void ShowJiraProjectsWindow();
     void ShowJiraTasksWindow();
-    void ShowSummaryWindow();
-    Task ShowTaskPromptAsync();
+    Task ShowSummaryWindow();
+    void ShowTaskPrompt();
+    Task ExitApplicationAsync();
 }
 
 public class ApplicationService : IApplicationService
@@ -39,40 +40,51 @@ public class ApplicationService : IApplicationService
 
     public async Task InitializeAsync()
     {
-        // Set up timer event handlers
-        _timerService.TaskPromptRequested += OnTaskPromptRequested;
-        _timerService.UpdateDataRequested += OnUpdateDataRequested;
-        _timerService.LunchBreakEnded += OnLunchBreakEnded;
-        _timerService.TrackingStarted += OnTrackingStarted;
-        _timerService.TrackingEnded += OnTrackingEnded;
-
-        // Start the timer service
-        _timerService.Start();
-
-        // Show initial task prompt if we're in tracking hours and JIRA is configured
-        var jiraConfigured = _configurationService.JiraSettings.IsConfigured;
-        
-        if (jiraConfigured)
+        try
         {
-            var now = TimeOnly.FromDateTime(DateTime.Now);
-            using var scope = _serviceProvider.CreateScope();
-            var timeTrackingService = scope.ServiceProvider.GetRequiredService<ITimeTrackingService>();
-            var taskManagementService = scope.ServiceProvider.GetRequiredService<ITaskManagementService>();
+            // Set up timer event handlers
+            _timerService.TaskPromptRequested += OnTaskPromptRequested;
+            _timerService.UpdateDataRequested += OnUpdateDataRequested;
+            _timerService.LunchBreakEnded += OnLunchBreakEnded;
+            _timerService.TrackingStarted += OnTrackingStarted;
+            _timerService.TrackingEnded += OnTrackingEnded;
+
+            // Start the timer service
+            _timerService.Start();
+
+            // Show initial task prompt if we're in tracking hours and JIRA is configured
+            var jiraConfigured = _configurationService.JiraSettings.IsConfigured;
             
-            var isWithinHours = timeTrackingService.IsWithinTrackingHours(
-                now,
-                _configurationService.AppSettings.TrackingStartTime,
-                _configurationService.AppSettings.TrackingEndTime);
-            
-            // Check if there are any selected projects before showing prompt
-            var selectedProjects = await taskManagementService.GetSelectedProjectsAsync();
-            
-            if (isWithinHours && selectedProjects.Any())
+            if (jiraConfigured)
             {
-                // Delay to ensure application is fully loaded
-                await Task.Delay(2000);
-                await ShowTaskPromptAsync();
+                var now = TimeOnly.FromDateTime(DateTime.Now);
+                using var scope = _serviceProvider.CreateScope();
+                var timeTrackingService = scope.ServiceProvider.GetRequiredService<ITimeTrackingService>();
+                var taskManagementService = scope.ServiceProvider.GetRequiredService<ITaskManagementService>();
+                
+                var isWithinHours = timeTrackingService.IsWithinTrackingHours(
+                    now,
+                    _configurationService.AppSettings.TrackingStartTime,
+                    _configurationService.AppSettings.TrackingEndTime);
+                
+                // Check if there are any selected projects before showing prompt
+                var selectedProjects = await taskManagementService.GetSelectedProjectsAsync();
+                
+                if (isWithinHours && selectedProjects.Any())
+                {
+                    // Delay to ensure application is fully loaded
+                    await Task.Delay(2000);
+                    ShowTaskPrompt();
+                }
             }
+        }
+        catch (Exception ex)
+        {
+            System.Windows.MessageBox.Show(
+                $"Error during application initialization:\n\n{ex.Message}\n\nStack trace:\n{ex.StackTrace}",
+                "Initialization Error",
+                System.Windows.MessageBoxButton.OK,
+                System.Windows.MessageBoxImage.Error);
         }
     }
 
@@ -85,9 +97,16 @@ public class ApplicationService : IApplicationService
             _mainWindow = new MainWindow(mainViewModel);
         }
 
-        _mainWindow.Show();
+        // If window is hidden, show it
+        if (!_mainWindow.IsVisible)
+        {
+            _mainWindow.Show();
+        }
+        
+        // Bring to front and activate
         _mainWindow.Activate();
         _mainWindow.WindowState = System.Windows.WindowState.Normal;
+        _mainWindow.BringIntoView();
     }
 
     public void ShowSettingsWindow()
@@ -150,7 +169,7 @@ public class ApplicationService : IApplicationService
         }
     }
 
-    public void ShowSummaryWindow()
+    public async Task ShowSummaryWindow()
     {
         try
         {
@@ -158,18 +177,15 @@ public class ApplicationService : IApplicationService
             var viewModel = scope.ServiceProvider.GetRequiredService<SummaryViewModel>();
             var window = new SummaryWindow(viewModel);
             
-            // Initialize data after window is created but before showing
-            Task.Run(async () =>
+            // Initialize data on the UI thread
+            try
             {
-                try
-                {
-                    await viewModel.InitializeAsync();
-                }
-                catch (Exception ex)
-                {
-                    System.Diagnostics.Debug.WriteLine($"Error initializing Summary window data: {ex.Message}");
-                }
-            });
+                await viewModel.InitializeAsync();
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error initializing Summary window data: {ex.Message}");
+            }
             
             window.ShowDialog();
         }
@@ -183,7 +199,7 @@ public class ApplicationService : IApplicationService
         }
     }
 
-    public async Task ShowTaskPromptAsync()
+    public void ShowTaskPrompt()
     {
         try
         {
@@ -200,36 +216,70 @@ public class ApplicationService : IApplicationService
             // Set up event handlers
             viewModel.TaskSelected += (s, e) =>
             {
-                // Task selection handled by viewmodel
+                try
+                {
+                    System.Diagnostics.Debug.WriteLine($"Task selected: {e.SelectedTask.Summary} (ID: {e.SelectedTask.Id})");
+                    
+                    // Task selection and switching is already handled by the viewmodel
+                    // Just log the selection
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"Error in TaskSelected event handler: {ex.Message}");
+                    System.Windows.MessageBox.Show(
+                        $"Error handling task selection:\n\n{ex.Message}\n\nStack trace:\n{ex.StackTrace}",
+                        "Task Selection Error",
+                        System.Windows.MessageBoxButton.OK,
+                        System.Windows.MessageBoxImage.Error);
+                }
             };
 
             viewModel.LunchStarted += (s, e) =>
             {
-                _timerService.StartLunchBreak(e.DurationMinutes);
+                try
+                {
+                    _timerService.StartLunchBreak(e.DurationMinutes);
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"Error starting lunch break: {ex.Message}");
+                }
             };
 
             viewModel.PromptTimedOut += async (s, e) =>
             {
-                // If no selection made, continue with current task if any
-                using var timeScope = _serviceProvider.CreateScope();
-                var timeService = timeScope.ServiceProvider.GetRequiredService<ITimeTrackingService>();
-                var activeEntry = await timeService.GetActiveTimeEntryAsync();
-                
-                // Continue silently with existing active task
+                try
+                {
+                    // If no selection made, continue with current task if any
+                    using var timeScope = _serviceProvider.CreateScope();
+                    var timeService = timeScope.ServiceProvider.GetRequiredService<ITimeTrackingService>();
+                    var activeEntry = await timeService.GetActiveTimeEntryAsync();
+                    
+                    System.Diagnostics.Debug.WriteLine("Task prompt timed out");
+                    // Continue silently with existing active task
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"Error in PromptTimedOut handler: {ex.Message}");
+                }
             };
 
             // Show the dialog
             var result = window.ShowDialog();
         }
-        catch (Exception)
+        catch (Exception ex)
         {
-            // Log error silently, don't show message box to user
+            System.Windows.MessageBox.Show(
+                $"Error showing task prompt:\n\n{ex.Message}\n\nStack trace:\n{ex.StackTrace}",
+                "Task Prompt Error",
+                System.Windows.MessageBoxButton.OK,
+                System.Windows.MessageBoxImage.Error);
         }
     }
 
-    private async void OnTaskPromptRequested(object? sender, EventArgs e)
+    private void OnTaskPromptRequested(object? sender, EventArgs e)
     {
-        await ShowTaskPromptAsync();
+        ShowTaskPrompt();
     }
 
     private async void OnUpdateDataRequested(object? sender, EventArgs e)
@@ -258,7 +308,7 @@ public class ApplicationService : IApplicationService
         _ = Task.Run(async () =>
         {
             await Task.Delay(1000); // Brief delay
-            await ShowTaskPromptAsync();
+            ShowTaskPrompt();
         });
     }
 
@@ -268,7 +318,7 @@ public class ApplicationService : IApplicationService
         
         // Show task prompt to start the day
         await Task.Delay(2000);
-        await ShowTaskPromptAsync();
+        ShowTaskPrompt();
     }
 
     private async void OnTrackingEnded(object? sender, EventArgs e)
@@ -279,5 +329,28 @@ public class ApplicationService : IApplicationService
         using var scope = _serviceProvider.CreateScope();
         var timeTrackingService = scope.ServiceProvider.GetRequiredService<ITimeTrackingService>();
         await timeTrackingService.StopTrackingAsync();
+    }
+
+    public async Task ExitApplicationAsync()
+    {
+        try
+        {
+            // Stop any active tracking
+            using var scope = _serviceProvider.CreateScope();
+            var timeTrackingService = scope.ServiceProvider.GetRequiredService<ITimeTrackingService>();
+            await timeTrackingService.StopTrackingAsync();
+            
+            // Save configuration
+            await _configurationService.SaveSettingsAsync();
+            
+            // Shutdown the application
+            System.Windows.Application.Current.Shutdown();
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Error during application exit: {ex.Message}");
+            // Force exit even if there's an error
+            System.Windows.Application.Current.Shutdown();
+        }
     }
 }

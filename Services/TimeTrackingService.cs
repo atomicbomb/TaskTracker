@@ -38,27 +38,62 @@ public class TimeTrackingService : ITimeTrackingService
 
     public async Task StartTrackingAsync(int taskId)
     {
-        // Stop any currently active tracking
-        await StopTrackingAsync();
-
-        var timeEntry = new TimeEntry
+        try
         {
-            TaskId = taskId,
-            StartTime = DateTime.Now,
-            Date = DateOnly.FromDateTime(DateTime.Now)
-        };
+            System.Diagnostics.Debug.WriteLine($"StartTrackingAsync called with TaskId: {taskId}");
+            
+            // Check if the task exists in the database
+            var taskExists = await _dbContext.JiraTasks.AnyAsync(t => t.Id == taskId);
+            if (!taskExists)
+            {
+                throw new InvalidOperationException($"Task with ID {taskId} does not exist in the database");
+            }
+            
+            // Stop any currently active tracking
+            await StopTrackingAsync();
 
-        _dbContext.TimeEntries.Add(timeEntry);
-        await _dbContext.SaveChangesAsync();
+            var timeEntry = new TimeEntry
+            {
+                TaskId = taskId,
+                StartTime = DateTime.Now,
+                Date = DateOnly.FromDateTime(DateTime.Now)
+            };
+
+            System.Diagnostics.Debug.WriteLine($"Adding time entry for task {taskId} at {timeEntry.StartTime}");
+            _dbContext.TimeEntries.Add(timeEntry);
+            await _dbContext.SaveChangesAsync();
+            System.Diagnostics.Debug.WriteLine("Time entry saved successfully");
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Error in StartTrackingAsync: {ex.Message}");
+            System.Diagnostics.Debug.WriteLine($"Stack trace: {ex.StackTrace}");
+            throw; // Re-throw to propagate the error
+        }
     }
 
     public async Task StopTrackingAsync()
     {
-        var activeEntry = await GetActiveTimeEntryAsync();
-        if (activeEntry != null)
+        try
         {
-            activeEntry.EndTime = DateTime.Now;
-            await _dbContext.SaveChangesAsync();
+            System.Diagnostics.Debug.WriteLine("StopTrackingAsync called");
+            var activeEntry = await GetActiveTimeEntryAsync();
+            if (activeEntry != null)
+            {
+                System.Diagnostics.Debug.WriteLine($"Stopping active time entry for task {activeEntry.TaskId}");
+                activeEntry.EndTime = DateTime.Now;
+                await _dbContext.SaveChangesAsync();
+                System.Diagnostics.Debug.WriteLine("Active time entry stopped successfully");
+            }
+            else
+            {
+                System.Diagnostics.Debug.WriteLine("No active time entry to stop");
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Error in StopTrackingAsync: {ex.Message}");
+            throw;
         }
     }
 

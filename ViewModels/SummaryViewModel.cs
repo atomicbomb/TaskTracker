@@ -146,7 +146,10 @@ public class SummaryViewModel : ViewModelBase
     /// </summary>
     public async Task InitializeAsync()
     {
-        await LoadDataAsync().ConfigureAwait(false);
+        await System.Windows.Application.Current.Dispatcher.InvokeAsync(async () =>
+        {
+            await LoadDataAsync();
+        });
     }
 
     public DateTime SelectedDate
@@ -228,6 +231,8 @@ public class SummaryViewModel : ViewModelBase
         {
             IsLoading = true;
             StatusMessage = "Loading summary data...";
+            
+            System.Diagnostics.Debug.WriteLine($"Loading data for view: {SelectedView}, date: {SelectedDate}");
 
             switch (SelectedView)
             {
@@ -243,10 +248,12 @@ public class SummaryViewModel : ViewModelBase
             }
 
             StatusMessage = "Data loaded successfully";
+            System.Diagnostics.Debug.WriteLine("Data loading completed");
         }
         catch (Exception ex)
         {
             StatusMessage = $"Error loading data: {ex.Message}";
+            System.Diagnostics.Debug.WriteLine($"Error loading data: {ex.Message}\nStack trace: {ex.StackTrace}");
         }
         finally
         {
@@ -273,14 +280,23 @@ public class SummaryViewModel : ViewModelBase
     private async Task LoadDailySummary()
     {
         var entries = await _timeTrackingService.GetTimeEntriesAsync(SelectedDate, SelectedDate.AddDays(1));
+        System.Diagnostics.Debug.WriteLine($"Found {entries.Count} time entries for date {SelectedDate}");
         
         // Include active entry if it started today
         var activeEntry = await _timeTrackingService.GetActiveTimeEntryAsync();
-        if (activeEntry != null && 
-            activeEntry.StartTime.Date == SelectedDate.Date &&
-            !entries.Any(e => e.Id == activeEntry.Id))
+        if (activeEntry != null)
         {
-            entries.Add(activeEntry);
+            System.Diagnostics.Debug.WriteLine($"Found active entry: Task {activeEntry.TaskId}, started {activeEntry.StartTime}");
+            if (activeEntry.StartTime.Date == SelectedDate.Date &&
+                !entries.Any(e => e.Id == activeEntry.Id))
+            {
+                entries.Add(activeEntry);
+                System.Diagnostics.Debug.WriteLine("Added active entry to today's entries");
+            }
+        }
+        else
+        {
+            System.Diagnostics.Debug.WriteLine("No active entry found");
         }
         
         var dailySummary = new DailySummaryViewModel
@@ -303,7 +319,14 @@ public class SummaryViewModel : ViewModelBase
             .ToList();
 
         dailySummary.TaskSummaries = taskGroups;
-        DailySummary = dailySummary;
+        System.Diagnostics.Debug.WriteLine($"Created daily summary with {taskGroups.Count} task groups, total time: {dailySummary.TotalTime}");
+        
+        // Ensure UI update happens on UI thread
+        await System.Windows.Application.Current.Dispatcher.InvokeAsync(() =>
+        {
+            DailySummary = dailySummary;
+            System.Diagnostics.Debug.WriteLine("Daily summary set on UI thread");
+        });
     }
 
     private async Task LoadWeeklySummary()
@@ -363,7 +386,12 @@ public class SummaryViewModel : ViewModelBase
         }
 
         weeklySummary.DailySummaries = dailySummaries;
-        WeeklySummary = weeklySummary;
+        
+        // Ensure UI update happens on UI thread
+        await System.Windows.Application.Current.Dispatcher.InvokeAsync(() =>
+        {
+            WeeklySummary = weeklySummary;
+        });
     }
 
     private async Task LoadTimeEntries()
@@ -381,7 +409,11 @@ public class SummaryViewModel : ViewModelBase
             entries.Add(activeEntry);
         }
         
-        TimeEntries = new ObservableCollection<TimeEntry>(entries.OrderByDescending(e => e.StartTime));
+        // Ensure UI update happens on UI thread
+        await System.Windows.Application.Current.Dispatcher.InvokeAsync(() =>
+        {
+            TimeEntries = new ObservableCollection<TimeEntry>(entries.OrderByDescending(e => e.StartTime));
+        });
     }
 
     private void PreviousDay()
