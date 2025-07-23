@@ -1,0 +1,241 @@
+<Window x:Class="TaskTracker.Views.JiraTasksWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:local="clr-namespace:TaskTracker.Views"
+        Title="JIRA Tasks - TaskTracker" 
+        Height="600" 
+        Width="900"
+        WindowStartupLocation="CenterScreen"
+        MinHeight="400"
+        MinWidth="600"
+        Background="{DynamicResource Background}"
+        Foreground="{DynamicResource Foreground}">
+    
+    <Window.Resources>
+        <!-- Converters -->
+        <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
+        
+        <!-- Bool to visibility inverter -->
+        <local:InverseBoolToVisibilityConverter x:Key="InverseBooleanToVisibilityConverter" />
+        
+        <!-- Status color converter -->
+        <local:BoolToColorConverter x:Key="StatusColorConverter" />
+    </Window.Resources>
+    
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+        
+        <!-- Header -->
+        <Border Grid.Row="0" 
+                Background="{DynamicResource AccentBackground}"
+                Padding="20,15">
+            <StackPanel>
+                <TextBlock Text="JIRA Tasks" 
+                          FontSize="20" 
+                          FontWeight="Bold"
+                          Foreground="{DynamicResource AccentForeground}" />
+                <TextBlock Text="Manage your tracked JIRA tasks"
+                          FontSize="12"
+                          Opacity="0.8"
+                          Foreground="{DynamicResource AccentForeground}" />
+            </StackPanel>
+        </Border>
+        
+        <!-- Add Task Section -->
+        <Border Grid.Row="1" 
+                Background="{DynamicResource CardBackground}"
+                BorderBrush="{DynamicResource BorderBrush}"
+                BorderThickness="0,0,0,1"
+                Padding="20,15">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                
+                <TextBlock Grid.Column="0"
+                          Text="Add Task:" 
+                          VerticalAlignment="Center"
+                          Margin="0,0,10,0"
+                          FontWeight="SemiBold" />
+                
+                <TextBox Grid.Column="1"
+                        Text="{Binding NewTaskNumber, UpdateSourceTrigger=PropertyChanged}"
+                        Height="30"
+                        VerticalContentAlignment="Center"
+                        Margin="0,0,10,0"
+                        IsEnabled="{Binding IsLoading, Converter={StaticResource InverseBooleanToVisibilityConverter}}"
+                        Background="{DynamicResource InputBackground}"
+                        Foreground="{DynamicResource InputForeground}"
+                        BorderBrush="{DynamicResource InputBorderBrush}">
+                    <TextBox.InputBindings>
+                        <KeyBinding Key="Return" Command="{Binding AddTaskCommand}" />
+                    </TextBox.InputBindings>
+                </TextBox>
+                
+                <Button Grid.Column="2"
+                       Content="Add Task"
+                       Height="30"
+                       Padding="15,0"
+                       Margin="0,0,10,0"
+                       Command="{Binding AddTaskCommand}"
+                       Background="{DynamicResource AccentBackground}"
+                       Foreground="{DynamicResource AccentForeground}"
+                       BorderBrush="{DynamicResource AccentBackground}"
+                       Style="{DynamicResource ModernButtonStyle}" />
+                
+                <Button Grid.Column="3"
+                       Content="Refresh from JIRA"
+                       Height="30"
+                       Padding="15,0"
+                       Command="{Binding RefreshFromJiraCommand}"
+                       Background="{DynamicResource SecondaryButtonBackground}"
+                       Foreground="{DynamicResource SecondaryButtonForeground}"
+                       BorderBrush="{DynamicResource SecondaryButtonBorderBrush}"
+                       Style="{DynamicResource ModernButtonStyle}" />
+            </Grid>
+        </Border>
+        
+        <!-- Tasks List -->
+        <Border Grid.Row="2"
+                Background="{DynamicResource CardBackground}"
+                BorderBrush="{DynamicResource BorderBrush}"
+                BorderThickness="0,0,0,1"
+                Margin="20,20,20,0">
+            <Grid>
+                <!-- Loading indicator -->
+                <StackPanel HorizontalAlignment="Center"
+                           VerticalAlignment="Center"
+                           Visibility="{Binding IsLoading, Converter={StaticResource BooleanToVisibilityConverter}}">
+                    <ProgressBar IsIndeterminate="True" 
+                                Width="200" 
+                                Height="4" 
+                                Margin="0,0,0,20"
+                                Background="{DynamicResource Background}"
+                                Foreground="{DynamicResource AccentBackground}" />
+                    <TextBlock Text="Loading tasks..."
+                              HorizontalAlignment="Center"
+                              FontStyle="Italic"
+                              Opacity="0.7" />
+                </StackPanel>
+                
+                <!-- Tasks DataGrid -->
+                <DataGrid ItemsSource="{Binding Tasks}"
+                         AutoGenerateColumns="False"
+                         CanUserAddRows="False"
+                         CanUserDeleteRows="False"
+                         GridLinesVisibility="Horizontal"
+                         HeadersVisibility="Column"
+                         SelectionMode="Extended"
+                         Visibility="{Binding IsLoading, Converter={StaticResource InverseBooleanToVisibilityConverter}}"
+                         Background="{DynamicResource CardBackground}"
+                         Foreground="{DynamicResource Foreground}"
+                         BorderBrush="{DynamicResource BorderBrush}"
+                         RowBackground="{DynamicResource CardBackground}"
+                         AlternatingRowBackground="{DynamicResource AlternateRowBackground}">
+                    
+                    <DataGrid.Columns>
+                        <DataGridCheckBoxColumn Header="Select" 
+                                               Binding="{Binding IsSelected}"
+                                               Width="60" />
+                        
+                        <DataGridTextColumn Header="Project" 
+                                           Binding="{Binding ProjectName}"
+                                           Width="120"
+                                           IsReadOnly="True" />
+                        
+                        <DataGridTextColumn Header="Task #" 
+                                           Binding="{Binding JiraTaskNumber}"
+                                           Width="100"
+                                           IsReadOnly="True" />
+                        
+                        <DataGridTextColumn Header="Summary" 
+                                           Binding="{Binding Summary}"
+                                           Width="*"
+                                           IsReadOnly="True" />
+                        
+                        <DataGridTextColumn Header="Last Updated" 
+                                           Binding="{Binding LastUpdated, StringFormat='{}{0:MM/dd/yyyy HH:mm}'}"
+                                           Width="130"
+                                           IsReadOnly="True" />
+                        
+                        <DataGridTemplateColumn Header="Status" Width="80">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate>
+                                    <Ellipse Width="12" 
+                                            Height="12" 
+                                            Fill="{Binding IsActive, Converter={StaticResource StatusColorConverter}}"
+                                            HorizontalAlignment="Center"
+                                            VerticalAlignment="Center" />
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+                    </DataGrid.Columns>
+                    
+                    <DataGrid.ContextMenu>
+                        <ContextMenu Background="{DynamicResource CardBackground}"
+                                    Foreground="{DynamicResource Foreground}"
+                                    BorderBrush="{DynamicResource BorderBrush}">
+                            <MenuItem Header="Remove Selected"
+                                     Command="{Binding RemoveSelectedTasksCommand}"
+                                     CommandParameter="{Binding RelativeSource={RelativeSource AncestorType=ContextMenu}, Path=PlacementTarget.SelectedItems}">
+                                <MenuItem.Icon>
+                                    <TextBlock Text="🗑️" FontSize="12" />
+                                </MenuItem.Icon>
+                            </MenuItem>
+                        </ContextMenu>
+                    </DataGrid.ContextMenu>
+                </DataGrid>
+            </Grid>
+        </Border>
+        
+        <!-- Action Buttons -->
+        <Border Grid.Row="3"
+                Background="{DynamicResource CardBackground}"
+                Padding="20,15"
+                BorderBrush="{DynamicResource BorderBrush}"
+                BorderThickness="0,0,0,1">
+            <StackPanel Orientation="Horizontal" 
+                       HorizontalAlignment="Right">
+                <Button Content="Remove Selected"
+                       Height="35"
+                       Padding="20,0"
+                       Margin="0,0,10,0"
+                       Command="{Binding RemoveSelectedTasksCommand}"
+                       CommandParameter="{Binding ElementName=TasksDataGrid, Path=SelectedItems}"
+                       Background="{DynamicResource WarningBackground}"
+                       Foreground="{DynamicResource WarningForeground}"
+                       BorderBrush="{DynamicResource WarningBackground}"
+                       Style="{DynamicResource ModernButtonStyle}" />
+                
+                <Button Content="Close"
+                       Height="35"
+                       Padding="20,0"
+                       Command="{Binding CloseCommand}"
+                       Background="{DynamicResource SecondaryButtonBackground}"
+                       Foreground="{DynamicResource SecondaryButtonForeground}"
+                       BorderBrush="{DynamicResource SecondaryButtonBorderBrush}"
+                       Style="{DynamicResource ModernButtonStyle}" />
+            </StackPanel>
+        </Border>
+        
+        <!-- Status Bar -->
+        <Border Grid.Row="4" 
+                Background="{DynamicResource StatusBarBackground}"
+                BorderBrush="{DynamicResource BorderBrush}"
+                BorderThickness="0,1,0,0"
+                Padding="20,8">
+            <TextBlock Text="{Binding StatusMessage}"
+                      FontSize="11"
+                      Foreground="{DynamicResource StatusBarForeground}" />
+        </Border>
+    </Grid>
+</Window>

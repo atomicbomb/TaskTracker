@@ -1,0 +1,312 @@
+using System.Windows.Threading;
+using TaskTracker.Models;
+
+namespace TaskTracker.Services;
+
+public interface ITimerService
+{
+    void Start();
+    void Stop();
+    void SetPromptInterval(int minutes);
+    void SetUpdateInterval(int minutes);
+    void StartLunchBreak(int durationMinutes);
+    bool IsOnLunchBreak { get; }
+    TimeSpan LunchBreakRemaining { get; }
+    
+    event EventHandler? TaskPromptRequested;
+    event EventHandler? UpdateDataRequested;
+    event EventHandler? LunchBreakEnded;
+    event EventHandler? TrackingStarted;
+    event EventHandler? TrackingEnded;
+}
+
+public class TimerService : ITimerService
+{
+    private readonly IConfigurationService _configurationService;
+    private readonly ITimeTrackingService _timeTrackingService;
+    private readonly ISystemTrayService _systemTrayService;
+    
+    private DispatcherTimer? _promptTimer;
+    private DispatcherTimer? _updateTimer;
+    private DispatcherTimer? _statusTimer;
+    private DispatcherTimer? _lunchTimer;
+    
+    private DateTime? _lunchStartTime;
+    private int _lunchDurationMinutes;
+    private bool _isOnLunchBreak;
+
+    public bool IsOnLunchBreak => _isOnLunchBreak;
+    
+    public TimeSpan LunchBreakRemaining 
+    {
+        get
+        {
+            if (!_isOnLunchBreak || !_lunchStartTime.HasValue) 
+                return TimeSpan.Zero;
+                
+            var elapsed = DateTime.Now - _lunchStartTime.Value;
+            var remaining = TimeSpan.FromMinutes(_lunchDurationMinutes) - elapsed;
+            return remaining > TimeSpan.Zero ? remaining : TimeSpan.Zero;
+        }
+    }
+
+    public event EventHandler? TaskPromptRequested;
+    public event EventHandler? UpdateDataRequested;
+    public event EventHandler? LunchBreakEnded;
+    public event EventHandler? TrackingStarted;
+    public event EventHandler? TrackingEnded;
+
+    public TimerService(
+        IConfigurationService configurationService,
+        ITimeTrackingService timeTrackingService,
+        ISystemTrayService systemTrayService)
+    {
+        _configurationService = configurationService;
+        _timeTrackingService = timeTrackingService;
+        _systemTrayService = systemTrayService;
+    }
+
+    public void Start()
+    {
+        System.Diagnostics.Debug.WriteLine("=== TimerService.Start() called ===");
+        
+        Stop(); // Stop any existing timers
+        
+        var settings = _configurationService.AppSettings;
+        
+        System.Diagnostics.Debug.WriteLine($"Prompt interval: {settings.PromptIntervalMinutes} minutes");
+        System.Diagnostics.Debug.WriteLine($"Update interval: {settings.UpdateIntervalMinutes} minutes");
+        
+        // Task prompt timer
+        _promptTimer = new DispatcherTimer
+        {
+            Interval = TimeSpan.FromMinutes(settings.PromptIntervalMinutes)
+        };
+        _promptTimer.Tick += OnPromptTimerTick;
+        _promptTimer.Start();
+        
+        System.Diagnostics.Debug.WriteLine("Prompt timer started");
+        
+        // Data update timer
+        _updateTimer = new DispatcherTimer
+        {
+            Interval = TimeSpan.FromMinutes(settings.UpdateIntervalMinutes)
+        };
+        _updateTimer.Tick += OnUpdateTimerTick;
+        _updateTimer.Start();
+        
+        // Status check timer (every minute)
+        _statusTimer = new DispatcherTimer
+        {
+            Interval = TimeSpan.FromMinutes(1)
+        };
+        _statusTimer.Tick += OnStatusTimerTick;
+        _statusTimer.Start();
+        
+        // Check if we should start tracking immediately
+        CheckTrackingStatus();
+        
+        System.Diagnostics.Debug.WriteLine("=== TimerService.Start() completed ===");
+    }
+
+    public void Stop()
+    {
+        _promptTimer?.Stop();
+        _updateTimer?.Stop();
+        _statusTimer?.Stop();
+        _lunchTimer?.Stop();
+        
+        _promptTimer = null;
+        _updateTimer = null;
+        _statusTimer = null;
+        _lunchTimer = null;
+    }
+
+    public void SetPromptInterval(int minutes)
+    {
+        if (_promptTimer != null)
+        {
+            _promptTimer.Interval = TimeSpan.FromMinutes(minutes);
+        }
+    }
+
+    public void SetUpdateInterval(int minutes)
+    {
+        if (_updateTimer != null)
+        {
+            _updateTimer.Interval = TimeSpan.FromMinutes(minutes);
+        }
+    }
+
+    public void StartLunchBreak(int durationMinutes)
+    {
+        _lunchDurationMinutes = durationMinutes;
+        _lunchStartTime = DateTime.Now;
+        _isOnLunchBreak = true;
+        
+        // Update system tray to show lunch status
+        _systemTrayService.UpdateStatus(TrayIconStatus.Lunch);
+        
+        // Stop any active tracking
+        _ = Task.Run(async () => await _timeTrackingService.StopTrackingAsync());
+        
+        // Set up lunch break timer
+        _lunchTimer = new DispatcherTimer
+        {
+            Interval = TimeSpan.FromMinutes(durationMinutes)
+        };
+        _lunchTimer.Tick += OnLunchTimerTick;
+        _lunchTimer.Start();
+    }
+
+    private void OnPromptTimerTick(object? sender, EventArgs e)
+    {
+        System.Diagnostics.Debug.WriteLine("=== OnPromptTimerTick called ===");
+        
+        if (ShouldPromptUser())
+        {
+            System.Diagnostics.Debug.WriteLine("Firing TaskPromptRequested event");
+            TaskPromptRequested?.Invoke(this, EventArgs.Empty);
+        }
+        else
+        {
+            System.Diagnostics.Debug.WriteLine("Not firing TaskPromptRequested event - conditions not met");
+        }
+    }
+
+    private void OnUpdateTimerTick(object? sender, EventArgs e)
+    {
+        if (IsWithinTrackingHours())
+        {
+            UpdateDataRequested?.Invoke(this, EventArgs.Empty);
+        }
+    }
+
+    private async void OnStatusTimerTick(object? sender, EventArgs e)
+    {
+        CheckTrackingStatus();
+        await CheckEndOfDayAsync();
+    }
+
+    private void OnLunchTimerTick(object? sender, EventArgs e)
+    {
+        _lunchTimer?.Stop();
+        _lunchTimer = null;
+        
+        _isOnLunchBreak = false;
+        _lunchStartTime = null;
+        
+        LunchBreakEnded?.Invoke(this, EventArgs.Empty);
+        
+        // Update system tray status
+        CheckTrackingStatus();
+    }
+
+    private bool ShouldPromptUser()
+    {
+        // Debug output
+        System.Diagnostics.Debug.WriteLine($"=== ShouldPromptUser Check ===");
+        System.Diagnostics.Debug.WriteLine($"Is on lunch break: {_isOnLunchBreak}");
+        
+        // Don't prompt if on lunch break
+        if (_isOnLunchBreak) 
+        {
+            System.Diagnostics.Debug.WriteLine("Not prompting: On lunch break");
+            return false;
+        }
+        
+        // Check tracking hours
+        var isWithinHours = IsWithinTrackingHours();
+        System.Diagnostics.Debug.WriteLine($"Is within tracking hours: {isWithinHours}");
+        
+        // Don't prompt if outside tracking hours
+        if (!isWithinHours) 
+        {
+            System.Diagnostics.Debug.WriteLine("Not prompting: Outside tracking hours");
+            return false;
+        }
+        
+        // Check JIRA configuration
+        var jiraConfigured = _configurationService.JiraSettings.IsConfigured;
+        System.Diagnostics.Debug.WriteLine($"JIRA configured: {jiraConfigured}");
+        System.Diagnostics.Debug.WriteLine($"JIRA Server: '{_configurationService.JiraSettings.ServerUrl}'");
+        System.Diagnostics.Debug.WriteLine($"JIRA Email: '{_configurationService.JiraSettings.Email}'");
+        System.Diagnostics.Debug.WriteLine($"JIRA Token: '{(_configurationService.JiraSettings.ApiToken.Length > 0 ? "[SET]" : "[EMPTY]")}'");
+        
+        // Don't prompt if JIRA is not configured
+        if (!jiraConfigured) 
+        {
+            System.Diagnostics.Debug.WriteLine("Not prompting: JIRA not configured");
+            return false;
+        }
+        
+        System.Diagnostics.Debug.WriteLine("Should prompt: All conditions met");
+        return true;
+    }
+
+    private bool IsWithinTrackingHours()
+    {
+        var now = TimeOnly.FromDateTime(DateTime.Now);
+        var startTime = _configurationService.AppSettings.TrackingStartTime;
+        var endTime = _configurationService.AppSettings.TrackingEndTime;
+        
+        System.Diagnostics.Debug.WriteLine($"Current time: {now}");
+        System.Diagnostics.Debug.WriteLine($"Tracking start: {startTime}");
+        System.Diagnostics.Debug.WriteLine($"Tracking end: {endTime}");
+        
+        var result = _timeTrackingService.IsWithinTrackingHours(now, startTime, endTime);
+        System.Diagnostics.Debug.WriteLine($"IsWithinTrackingHours result: {result}");
+        
+        return result;
+    }
+
+    private void CheckTrackingStatus()
+    {
+        if (_isOnLunchBreak)
+        {
+            _systemTrayService.UpdateStatus(TrayIconStatus.Lunch);
+            return;
+        }
+
+        var isWithinHours = IsWithinTrackingHours();
+        var status = isWithinHours ? TrayIconStatus.Active : TrayIconStatus.Inactive;
+        _systemTrayService.UpdateStatus(status);
+        
+        // Fire tracking events
+        var wasWithinHours = _promptTimer?.IsEnabled == true;
+        if (isWithinHours && !wasWithinHours)
+        {
+            TrackingStarted?.Invoke(this, EventArgs.Empty);
+        }
+        else if (!isWithinHours && wasWithinHours)
+        {
+            TrackingEnded?.Invoke(this, EventArgs.Empty);
+        }
+    }
+
+    private async Task CheckEndOfDayAsync()
+    {
+        var now = TimeOnly.FromDateTime(DateTime.Now);
+        var endTime = _timeTrackingService.ParseTimeString(_configurationService.AppSettings.TrackingEndTime);
+        
+        // Check if we just passed the end time
+        if (now >= endTime && now <= endTime.AddMinutes(1))
+        {
+            try
+            {
+                await _timeTrackingService.StopTrackingAsync();
+                
+                // Show notification
+                System.Windows.MessageBox.Show(
+                    "End of tracking day reached. Current task has been automatically stopped.",
+                    "TaskTracker",
+                    System.Windows.MessageBoxButton.OK,
+                    System.Windows.MessageBoxImage.Information);
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error stopping tracking at end of day: {ex.Message}");
+            }
+        }
+    }
+}
