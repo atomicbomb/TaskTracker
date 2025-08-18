@@ -80,6 +80,7 @@ public partial class App : System.Windows.Application
         services.AddSingleton<ISystemTrayService, SystemTrayService>();
         services.AddSingleton<ITimerService, TimerService>();
         services.AddSingleton<IApplicationService, ApplicationService>();
+    services.AddSingleton<IGoogleIntegrationService, GoogleIntegrationService>();
         services.AddScoped<ITimeTrackingService, TimeTrackingService>();
         services.AddScoped<ITaskManagementService, TaskManagementService>();
         

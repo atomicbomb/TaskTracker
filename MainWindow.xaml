@@ -106,8 +106,8 @@
                         Margin="5"/>
                 
                 <!-- Row 3 -->
-                <Button Grid.Row="2" Grid.Column="0" 
-                        Content="Test Task Prompt" 
+        <Button Grid.Row="2" Grid.Column="0" 
+            Content="Manual Task Update" 
                         Style="{StaticResource SecondaryButtonStyle}"
                         Command="{Binding TestTaskPromptCommand}"
                         Margin="5"/>

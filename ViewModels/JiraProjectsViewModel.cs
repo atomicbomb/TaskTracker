@@ -99,10 +99,16 @@ public class JiraProjectsViewModel : ViewModelBase
             StatusMessage = "Loading projects...";
 
             var projects = await _taskManagementService.GetProjectsAsync();
-            var projectViewModels = projects.Select(p => new JiraProjectViewModel(p)).ToList();
+            // Exclude demo/test projects from the UI
+            var filtered = projects
+                .Where(p => !string.Equals(p.ProjectCode, "DEMO", StringComparison.OrdinalIgnoreCase)
+                         && !string.Equals(p.ProjectCode, "TEST", StringComparison.OrdinalIgnoreCase))
+                .ToList();
+
+            var projectViewModels = filtered.Select(p => new JiraProjectViewModel(p)).ToList();
 
             Projects = new ObservableCollection<JiraProjectViewModel>(projectViewModels);
-            StatusMessage = $"Loaded {projects.Count} projects";
+            StatusMessage = $"Loaded {filtered.Count} projects";
         }
         catch (Exception ex)
         {
@@ -133,12 +139,16 @@ public class JiraProjectsViewModel : ViewModelBase
 
             await _taskManagementService.RefreshProjectsFromJiraAsync();
             
-            // Reload the updated projects
+            // Reload the updated projects and filter out demo/test
             var projects = await _taskManagementService.GetProjectsAsync();
-            var projectViewModels = projects.Select(p => new JiraProjectViewModel(p)).ToList();
+            var filtered = projects
+                .Where(p => !string.Equals(p.ProjectCode, "DEMO", StringComparison.OrdinalIgnoreCase)
+                         && !string.Equals(p.ProjectCode, "TEST", StringComparison.OrdinalIgnoreCase))
+                .ToList();
+            var projectViewModels = filtered.Select(p => new JiraProjectViewModel(p)).ToList();
 
             Projects = new ObservableCollection<JiraProjectViewModel>(projectViewModels);
-            StatusMessage = $"Refreshed {projects.Count} projects from JIRA";
+            StatusMessage = $"Refreshed {filtered.Count} projects from JIRA";
         }
         catch (Exception ex)
         {

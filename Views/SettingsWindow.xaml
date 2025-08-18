@@ -172,6 +172,55 @@
                                   HorizontalAlignment="Left"/>
                     </Grid>
                 </GroupBox>
+
+                <!-- Google Integration Section -->
+                <GroupBox Header="Google Integration" 
+                          Padding="15"
+                          Margin="0,0,0,20"
+                          BorderBrush="{StaticResource BorderBrush}">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="10"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="10"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="10"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="10"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="10"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="150"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+
+                        <TextBlock Grid.Row="0" Grid.Column="0" Text="Enable Integration:" VerticalAlignment="Center"/>
+                        <CheckBox Grid.Row="0" Grid.Column="1" IsChecked="{Binding GoogleEnabled}"/>
+
+                        <TextBlock Grid.Row="2" Grid.Column="0" Text="Client ID:" VerticalAlignment="Center"/>
+                        <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding GoogleClientId}"/>
+
+                        <TextBlock Grid.Row="4" Grid.Column="0" Text="Client Secret:" VerticalAlignment="Center"/>
+                        <PasswordBox Grid.Row="4" Grid.Column="1" Name="GoogleClientSecretBox" PasswordChanged="OnGoogleSecretChanged"/>
+
+                        <TextBlock Grid.Row="6" Grid.Column="0" Text="Scan Interval:" VerticalAlignment="Center"/>
+                        <StackPanel Grid.Row="6" Grid.Column="1" Orientation="Horizontal">
+                            <TextBox Text="{Binding GoogleScanInterval}" Width="60" Margin="0,0,5,0"/>
+                            <TextBlock Text="minutes" VerticalAlignment="Center"/>
+                        </StackPanel>
+
+                        <StackPanel Grid.Row="8" Grid.Column="1" Orientation="Horizontal">
+                            <Button Content="Connect Google" Command="{Binding ConnectGoogleCommand}" Width="140" Margin="0,0,10,0"/>
+                            <Button Content="Disconnect" Command="{Binding DisconnectGoogleCommand}" Width="100" Margin="0,0,10,0"/>
+                            <Button Content="Test" Command="{Binding TestGoogleCommand}" Width="80"/>
+                        </StackPanel>
+
+                        <TextBlock Grid.Row="10" Grid.Column="1" Text="{Binding GoogleStatus}" TextWrapping="Wrap" Foreground="{StaticResource TextSecondaryBrush}"/>
+                    </Grid>
+                </GroupBox>
                 
             </StackPanel>
         </ScrollViewer>

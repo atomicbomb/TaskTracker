@@ -9,12 +9,14 @@ public interface ITimerService
     void Stop();
     void SetPromptInterval(int minutes);
     void SetUpdateInterval(int minutes);
+    void SetCalendarScanInterval(int minutes);
     void StartLunchBreak(int durationMinutes);
     bool IsOnLunchBreak { get; }
     TimeSpan LunchBreakRemaining { get; }
     
     event EventHandler? TaskPromptRequested;
     event EventHandler? UpdateDataRequested;
+    event EventHandler? CalendarScanRequested;
     event EventHandler? LunchBreakEnded;
     event EventHandler? TrackingStarted;
     event EventHandler? TrackingEnded;
@@ -28,6 +30,7 @@ public class TimerService : ITimerService
     
     private DispatcherTimer? _promptTimer;
     private DispatcherTimer? _updateTimer;
+    private DispatcherTimer? _calendarTimer;
     private DispatcherTimer? _statusTimer;
     private DispatcherTimer? _lunchTimer;
     
@@ -52,6 +55,7 @@ public class TimerService : ITimerService
 
     public event EventHandler? TaskPromptRequested;
     public event EventHandler? UpdateDataRequested;
+    public event EventHandler? CalendarScanRequested;
     public event EventHandler? LunchBreakEnded;
     public event EventHandler? TrackingStarted;
     public event EventHandler? TrackingEnded;
@@ -76,6 +80,7 @@ public class TimerService : ITimerService
         
         System.Diagnostics.Debug.WriteLine($"Prompt interval: {settings.PromptIntervalMinutes} minutes");
         System.Diagnostics.Debug.WriteLine($"Update interval: {settings.UpdateIntervalMinutes} minutes");
+    System.Diagnostics.Debug.WriteLine($"Calendar scan enabled: {settings.Google.Enabled}, interval: {settings.Google.ScanIntervalMinutes} minutes");
         
         // Task prompt timer
         _promptTimer = new DispatcherTimer
@@ -94,6 +99,17 @@ public class TimerService : ITimerService
         };
         _updateTimer.Tick += OnUpdateTimerTick;
         _updateTimer.Start();
+        
+        // Google Calendar scan timer (optional)
+        if (settings.Google.Enabled && settings.Google.ScanIntervalMinutes > 0)
+        {
+            _calendarTimer = new DispatcherTimer
+            {
+                Interval = TimeSpan.FromMinutes(settings.Google.ScanIntervalMinutes)
+            };
+            _calendarTimer.Tick += OnCalendarTimerTick;
+            _calendarTimer.Start();
+        }
         
         // Status check timer (every minute)
         _statusTimer = new DispatcherTimer
@@ -114,10 +130,12 @@ public class TimerService : ITimerService
         _promptTimer?.Stop();
         _updateTimer?.Stop();
         _statusTimer?.Stop();
+    _calendarTimer?.Stop();
         _lunchTimer?.Stop();
         
         _promptTimer = null;
         _updateTimer = null;
+    _calendarTimer = null;
         _statusTimer = null;
         _lunchTimer = null;
     }
@@ -136,6 +154,24 @@ public class TimerService : ITimerService
         {
             _updateTimer.Interval = TimeSpan.FromMinutes(minutes);
         }
+    }
+
+    public void SetCalendarScanInterval(int minutes)
+    {
+        if (minutes <= 0)
+        {
+            _calendarTimer?.Stop();
+            _calendarTimer = null;
+            return;
+        }
+
+        if (_calendarTimer == null)
+        {
+            _calendarTimer = new DispatcherTimer();
+            _calendarTimer.Tick += OnCalendarTimerTick;
+        }
+        _calendarTimer.Interval = TimeSpan.FromMinutes(minutes);
+        if (!_calendarTimer.IsEnabled) _calendarTimer.Start();
     }
 
     public void StartLunchBreak(int durationMinutes)
@@ -179,6 +215,14 @@ public class TimerService : ITimerService
         if (IsWithinTrackingHours())
         {
             UpdateDataRequested?.Invoke(this, EventArgs.Empty);
+        }
+    }
+
+    private void OnCalendarTimerTick(object? sender, EventArgs e)
+    {
+        if (IsWithinTrackingHours())
+        {
+            CalendarScanRequested?.Invoke(this, EventArgs.Empty);
         }
     }
 

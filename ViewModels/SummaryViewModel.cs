@@ -113,6 +113,7 @@ public class WeeklySummaryViewModel : ViewModelBase
 public class SummaryViewModel : ViewModelBase
 {
     private readonly ITimeTrackingService _timeTrackingService;
+    private readonly ITaskManagementService _taskManagementService;
     
     private DateTime _selectedDate = DateTime.Today;
     private bool _isLoading;
@@ -122,20 +123,32 @@ public class SummaryViewModel : ViewModelBase
     private ObservableCollection<TimeEntry> _timeEntries = new();
     private string _selectedView = "Daily"; // Daily, Weekly, Entries
 
-    public SummaryViewModel(ITimeTrackingService timeTrackingService)
+    public SummaryViewModel(ITimeTrackingService timeTrackingService, ITaskManagementService taskManagementService)
     {
         _timeTrackingService = timeTrackingService;
+        _taskManagementService = taskManagementService;
 
-        // Initialize commands
-        PreviousDayCommand = new RelayCommand(PreviousDay);
-        NextDayCommand = new RelayCommand(NextDay);
+    PreviousDayCommand = new RelayCommand(PreviousDay);
+    NextDayCommand = new RelayCommand(NextDay);
+    DeleteEntryCommand = new AsyncRelayCommand(async (obj) =>
+        {
+            var entry = obj as TimeEntry;
+            if (entry != null)
+            {
+                await DeleteEntryAsync(entry);
+            }
+            else
+            {
+                await DeleteSelectedEntry();
+            }
+    }, obj => obj is TimeEntry || SelectedEntry != null);
         TodayCommand = new RelayCommand(GoToToday);
         PreviousWeekCommand = new RelayCommand(PreviousWeek);
         NextWeekCommand = new RelayCommand(NextWeek);
         ThisWeekCommand = new RelayCommand(GoToThisWeek);
-        RefreshCommand = new AsyncRelayCommand(Refresh, () => !_isLoading);
-        ExportCommand = new AsyncRelayCommand(Export, () => !_isLoading);
-        CloseCommand = new RelayCommand(Close);
+    RefreshCommand = new AsyncRelayCommand(Refresh, () => !_isLoading);
+    ExportCommand = new AsyncRelayCommand(Export, () => !_isLoading);
+    CloseCommand = new RelayCommand(Close);
 
         // Don't load data immediately in constructor to avoid blocking UI
         // Data will be loaded when window is shown or user interactions trigger it
@@ -199,6 +212,10 @@ public class SummaryViewModel : ViewModelBase
         set => SetProperty(ref _timeEntries, value);
     }
 
+    // For potential future UI use
+    private string _newTaskNumber = string.Empty;
+    public string NewTaskNumber { get => _newTaskNumber; set => SetProperty(ref _newTaskNumber, value); }
+
     public string SelectedView
     {
         get => _selectedView;
@@ -221,6 +238,22 @@ public class SummaryViewModel : ViewModelBase
     public ICommand RefreshCommand { get; }
     public ICommand ExportCommand { get; }
     public ICommand CloseCommand { get; }
+    public ICommand DeleteEntryCommand { get; }
+    // No explicit command; handled via view event calling ChangeTimeEntryTaskByNumberAsync
+
+    // Events
+    private TimeEntry? _selectedEntry;
+    public TimeEntry? SelectedEntry
+    {
+        get => _selectedEntry;
+        set
+        {
+            if (SetProperty(ref _selectedEntry, value))
+            {
+                (DeleteEntryCommand as AsyncRelayCommand)?.RaiseCanExecuteChanged();
+            }
+        }
+    }
 
     // Events
     public event EventHandler? CloseRequested;
@@ -258,6 +291,58 @@ public class SummaryViewModel : ViewModelBase
         finally
         {
             IsLoading = false;
+        }
+    }
+
+    // Called by view to update times of a single entry
+    public async Task<TimeEntry?> UpdateTimeEntryTimesAsync(TimeEntry entry, DateTime newStart, DateTime? newEnd)
+    {
+        try
+        {
+            await _timeTrackingService.UpdateTimeEntryTimesAsync(entry.Id, newStart, newEnd);
+            // Reload the entry with includes
+            var updated = await _timeTrackingService.GetTimeEntryByIdAsync(entry.Id);
+            return updated;
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"Failed to update times: {ex.Message}";
+            return null;
+        }
+    }
+
+    private async Task DeleteSelectedEntry()
+    {
+        if (SelectedEntry == null) return;
+        try
+        {
+            await _timeTrackingService.DeleteTimeEntryAsync(SelectedEntry.Id);
+            TimeEntries.Remove(SelectedEntry);
+            SelectedEntry = null;
+            StatusMessage = "Entry deleted";
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"Delete failed: {ex.Message}";
+        }
+    }
+
+    private async Task DeleteEntryAsync(TimeEntry entry)
+    {
+        try
+        {
+            await _timeTrackingService.DeleteTimeEntryAsync(entry.Id);
+            var toRemove = TimeEntries.FirstOrDefault(e => e.Id == entry.Id) ?? entry;
+            TimeEntries.Remove(toRemove);
+            if (SelectedEntry?.Id == entry.Id)
+            {
+                SelectedEntry = null;
+            }
+            StatusMessage = "Entry deleted";
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"Delete failed: {ex.Message}";
         }
     }
 
@@ -396,7 +481,8 @@ public class SummaryViewModel : ViewModelBase
 
     private async Task LoadTimeEntries()
     {
-        var endDate = SelectedView == "Daily" ? SelectedDate.AddDays(1) : SelectedDate.AddDays(7);
+    // For the Time Entries view, always show only the selected date
+    var endDate = SelectedDate.AddDays(1);
         var entries = await _timeTrackingService.GetTimeEntriesAsync(SelectedDate, endDate);
         
         // Also include the current active entry if it exists and started today
@@ -516,5 +602,52 @@ public class SummaryViewModel : ViewModelBase
     private void Close()
     {
         CloseRequested?.Invoke(this, EventArgs.Empty);
+    }
+
+    public async Task<(bool Success, TimeEntry? Updated)> ChangeTimeEntryTaskByNumberAsync(TimeEntry entry, string newTaskNumber)
+    {
+        if (entry == null) return (false, null);
+        if (string.IsNullOrWhiteSpace(newTaskNumber))
+        {
+            StatusMessage = "Task number cannot be empty.";
+            return (false, null);
+        }
+
+        try
+        {
+            IsLoading = true;
+            StatusMessage = $"Updating entry #{entry.Id} to {newTaskNumber}...";
+
+            // Find task or add from JIRA
+            var task = await _taskManagementService.GetTaskByNumberAsync(newTaskNumber);
+            if (task == null)
+            {
+                // Try to add from JIRA
+                task = await _taskManagementService.AddTaskByNumberAsync(newTaskNumber);
+            }
+
+            if (task == null)
+            {
+                StatusMessage = $"Task '{newTaskNumber}' not found in JIRA.";
+                return (false, null);
+            }
+
+            await _timeTrackingService.UpdateTimeEntryTaskAsync(entry.Id, task.Id);
+
+            // Fetch the updated entry (detached) for in-place update in the grid
+            var updated = await _timeTrackingService.GetTimeEntryByIdAsync(entry.Id);
+            StatusMessage = "Time entry updated.";
+            return (true, updated);
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"Failed to update entry: {ex.Message}";
+            System.Diagnostics.Debug.WriteLine(ex);
+            return (false, null);
+        }
+        finally
+        {
+            IsLoading = false;
+        }
     }
 }

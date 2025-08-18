@@ -22,6 +22,7 @@
         <local:InverseBoolConverter x:Key="InverseBoolConverter"/>
         <local:InverseBoolToVisibilityConverter x:Key="InverseBoolToVisibilityConverter"/>
         <local:LunchModeToTextConverter x:Key="LunchModeToTextConverter"/>
+    <BooleanToVisibilityConverter x:Key="ManualBoolToVisibility"/>
         
         <!-- Simple color brushes -->
         <SolidColorBrush x:Key="TextPrimaryBrush" Color="Black"/>
@@ -71,14 +72,14 @@
         <!-- Content -->
         <Grid Grid.Row="1">
             
-            <!-- Normal Task Selection Mode -->
-            <Grid Visibility="{Binding IsLunchMode, Converter={StaticResource InverseBoolToVisibilityConverter}}">
+        <!-- Normal/Manual Task Selection Mode -->
+        <Grid Visibility="{Binding IsLunchMode, Converter={StaticResource InverseBoolToVisibilityConverter}}">
                 <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
                     <RowDefinition Height="10"/>
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="10"/>
-                    <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
                     <RowDefinition Height="10"/>
                     <RowDefinition Height="Auto"/>
                 </Grid.RowDefinitions>
@@ -100,12 +101,14 @@
                     </ComboBox.ItemTemplate>
                 </ComboBox>
                 
-                <TextBlock Grid.Row="2" Text="Task:" FontWeight="SemiBold" Margin="0,0,0,5"/>
+                <TextBlock Grid.Row="2" Text="Task:" FontWeight="SemiBold" Margin="0,0,0,5"
+                           Visibility="{Binding IsManualMode, Converter={StaticResource InverseBoolToVisibilityConverter}}"/>
                 <ComboBox Grid.Row="2" 
                           ItemsSource="{Binding Tasks}"
                           SelectedItem="{Binding SelectedTask}"
                           IsEnabled="{Binding IsLoading, Converter={StaticResource InverseBoolConverter}}"
-                          Margin="0,20,0,0">
+                          Margin="0,20,0,0"
+                          Visibility="{Binding IsManualMode, Converter={StaticResource InverseBoolToVisibilityConverter}}">
                     <ComboBox.ItemTemplate>
                         <DataTemplate>
                             <StackPanel Orientation="Horizontal">
@@ -116,6 +119,13 @@
                         </DataTemplate>
                     </ComboBox.ItemTemplate>
                 </ComboBox>
+
+                <!-- Manual Mode Inputs -->
+                <TextBlock Grid.Row="2" Text="Manual Summary:" FontWeight="SemiBold" Margin="0,0,0,5"
+                           Visibility="{Binding IsManualMode, Converter={StaticResource ManualBoolToVisibility}}"/>
+                <TextBox Grid.Row="2" Text="{Binding ManualSummary, UpdateSourceTrigger=PropertyChanged}"
+                         Margin="0,20,0,0"
+                         Visibility="{Binding IsManualMode, Converter={StaticResource ManualBoolToVisibility}}"/>
                 
                 <!-- Loading Indicator -->
                 <StackPanel Grid.Row="4" 
@@ -177,13 +187,22 @@
                 <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
             
-            <Button Grid.Column="0" 
-                    Content="{Binding IsLunchMode, Converter={StaticResource LunchModeToTextConverter}}" 
+        <Button Grid.Column="0" 
+            Content="{Binding IsLunchMode, Converter={StaticResource LunchModeToTextConverter}}" 
                     Style="{StaticResource SecondaryButtonStyle}"
                     Command="{Binding LunchCommand}"
                     HorizontalAlignment="Left"
                     Width="100"
                     Visibility="{Binding IsLunchMode, Converter={StaticResource InverseBoolToVisibilityConverter}}"/>
+
+        <Button Grid.Column="0"
+            Content="Manual Mode"
+            Style="{StaticResource SecondaryButtonStyle}"
+            Command="{Binding ManualModeCommand}"
+            HorizontalAlignment="Left"
+            Width="110"
+            Margin="110,0,0,0"
+            Visibility="{Binding IsLunchMode, Converter={StaticResource InverseBoolToVisibilityConverter}}"/>
             
             <Button Grid.Column="1" 
                     Content="Confirm" 

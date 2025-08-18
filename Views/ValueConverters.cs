@@ -30,15 +30,38 @@ public class BooleanToVisibilityConverter : IValueConverter
     }
 }
 
-public class BoolToColorConverter : IValueConverter
+// Converts (value == parameter) to Visibility.Visible, else Collapsed
+public class StringEqualsToVisibilityConverter : IValueConverter
 {
     public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
     {
-        if (value is bool isActive)
+        var val = value?.ToString() ?? string.Empty;
+        var param = parameter?.ToString() ?? string.Empty;
+        return string.Equals(val, param, StringComparison.OrdinalIgnoreCase)
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+    }
+
+    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+    {
+        // One-way converter
+        return System.Windows.Data.Binding.DoNothing;
+    }
+}
+
+public class JiraStatusCategoryToBrushConverter : IValueConverter
+{
+    public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+    {
+        var key = value?.ToString() ?? string.Empty;
+        // JIRA statusCategory keys commonly: "new" (To Do), "indeterminate" (In Progress), "done" (Done)
+        return key.ToLower() switch
         {
-            return isActive ? System.Windows.Media.Brushes.Green : System.Windows.Media.Brushes.Red;
-        }
-        return System.Windows.Media.Brushes.Gray;
+            "done" => System.Windows.Media.Brushes.ForestGreen,
+            "new" => System.Windows.Media.Brushes.DimGray,
+            "indeterminate" => System.Windows.Media.Brushes.DarkOrange,
+            _ => System.Windows.Media.Brushes.SlateGray
+        };
     }
 
     public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
@@ -53,6 +76,12 @@ public class StringToBooleanConverter : IValueConverter
     {
         if (value is string stringValue && parameter is string parameterValue)
         {
+            // Support multi-value parameter separated by '|'
+            var options = parameterValue.Split('|', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            if (options.Length > 1)
+            {
+                return options.Any(opt => string.Equals(stringValue, opt, StringComparison.OrdinalIgnoreCase));
+            }
             return string.Equals(stringValue, parameterValue, StringComparison.OrdinalIgnoreCase);
         }
         return false;
@@ -65,6 +94,24 @@ public class StringToBooleanConverter : IValueConverter
             return parameterValue;
         }
         return System.Windows.Data.Binding.DoNothing;
+    }
+}
+
+// Returns Visible if bound string equals any of the '|' separated values in ConverterParameter
+public class StringInListToVisibilityConverter : IValueConverter
+{
+    public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+    {
+        var val = value?.ToString() ?? string.Empty;
+        var list = (parameter?.ToString() ?? string.Empty)
+            .Split('|', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        var match = list.Any(item => string.Equals(val, item, StringComparison.OrdinalIgnoreCase));
+        return match ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+    {
+    return System.Windows.Data.Binding.DoNothing;
     }
 }
 
@@ -175,5 +222,17 @@ public class TimeSpanToStringConverter : IValueConverter
     public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
     {
         throw new NotImplementedException();
+    }
+}
+
+// Small helper for Minutes value formatting from TimeEntry
+// If Duration isn't set (active entry), compute minutes so UI has a number
+public static class TimeEntryHelpers
+{
+    public static int GetDurationMinutes(DateTime start, DateTime? end)
+    {
+        var effectiveEnd = end ?? DateTime.Now;
+        if (effectiveEnd < start) return 0;
+        return (int)Math.Round((effectiveEnd - start).TotalMinutes);
     }
 }

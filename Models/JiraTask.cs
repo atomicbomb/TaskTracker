@@ -14,6 +14,10 @@ public class JiraTask
     public string Summary { get; set; } = string.Empty;
     
     public bool IsActive { get; set; } = true;
+    [NotMapped]
+    public string? StatusName { get; set; }
+    [NotMapped]
+    public string? StatusCategoryKey { get; set; }
     
     public DateTime LastUpdated { get; set; } = DateTime.UtcNow;
     

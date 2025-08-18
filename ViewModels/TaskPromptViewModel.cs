@@ -18,7 +18,9 @@ public class TaskPromptViewModel : ViewModelBase
     private JiraTask? _selectedTask;
     private bool _isLoading;
     private bool _isLunchMode;
+    private bool _isManualMode;
     private int _lunchDuration;
+    private string _manualSummary = string.Empty;
     private System.Windows.Threading.DispatcherTimer? _timeoutTimer;
 
     public TaskPromptViewModel(
@@ -34,7 +36,8 @@ public class TaskPromptViewModel : ViewModelBase
 
         // Initialize commands
         ConfirmCommand = new AsyncRelayCommand(Confirm, () => CanConfirm());
-        LunchCommand = new RelayCommand(StartLunch);
+    LunchCommand = new RelayCommand(StartLunch);
+    ManualModeCommand = new RelayCommand(ToggleManualMode);
         CancelCommand = new RelayCommand(Cancel);
 
         // Initialize lunch duration with default
@@ -91,17 +94,43 @@ public class TaskPromptViewModel : ViewModelBase
         set => SetProperty(ref _isLunchMode, value);
     }
 
+    public bool IsManualMode
+    {
+        get => _isManualMode;
+        set
+        {
+            if (SetProperty(ref _isManualMode, value))
+            {
+                OnPropertyChanged(nameof(WindowTitle));
+                (ConfirmCommand as AsyncRelayCommand)?.RaiseCanExecuteChanged();
+            }
+        }
+    }
+
     public int LunchDuration
     {
         get => _lunchDuration;
         set => SetProperty(ref _lunchDuration, value);
     }
 
-    public string WindowTitle => IsLunchMode ? "Lunch Break" : "Current Task";
+    public string WindowTitle => IsLunchMode ? "Lunch Break" : (IsManualMode ? "Manual Task" : "Current Task");
+
+    public string ManualSummary
+    {
+        get => _manualSummary;
+        set
+        {
+            if (SetProperty(ref _manualSummary, value))
+            {
+                (ConfirmCommand as AsyncRelayCommand)?.RaiseCanExecuteChanged();
+            }
+        }
+    }
 
     // Commands
     public ICommand ConfirmCommand { get; }
     public ICommand LunchCommand { get; }
+    public ICommand ManualModeCommand { get; }
     public ICommand CancelCommand { get; }
 
     // Events
@@ -181,8 +210,9 @@ public class TaskPromptViewModel : ViewModelBase
 
     private bool CanConfirm()
     {
-        if (IsLunchMode) return LunchDuration > 0;
-        return SelectedProject != null && SelectedTask != null;
+    if (IsLunchMode) return LunchDuration > 0;
+    if (IsManualMode) return SelectedProject != null && !string.IsNullOrWhiteSpace(ManualSummary);
+    return SelectedProject != null && SelectedTask != null;
     }
 
     private async Task Confirm()
@@ -196,6 +226,16 @@ public class TaskPromptViewModel : ViewModelBase
             {
                 System.Diagnostics.Debug.WriteLine($"Starting lunch break for {LunchDuration} minutes");
                 LunchStarted?.Invoke(this, new LunchStartedEventArgs(LunchDuration));
+            }
+            else if (IsManualMode)
+            {
+                if (SelectedProject == null || string.IsNullOrWhiteSpace(ManualSummary))
+                    return;
+
+                // Create a manual task under the selected project and switch to it
+                var manualTask = await _taskManagementService.AddManualTaskAsync(SelectedProject.Id, ManualSummary);
+                await _timeTrackingService.SwitchTaskAsync(manualTask.Id);
+                TaskSelected?.Invoke(this, new TaskSelectedEventArgs(manualTask));
             }
             else if (SelectedTask != null)
             {
@@ -230,6 +270,15 @@ public class TaskPromptViewModel : ViewModelBase
         IsLunchMode = !IsLunchMode;
         OnPropertyChanged(nameof(WindowTitle));
         (ConfirmCommand as AsyncRelayCommand)?.RaiseCanExecuteChanged();
+    }
+
+    private void ToggleManualMode()
+    {
+        IsManualMode = !IsManualMode;
+        if (!IsManualMode)
+        {
+            ManualSummary = string.Empty;
+        }
     }
 
     private void Cancel()

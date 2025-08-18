@@ -13,6 +13,10 @@ public interface ITimeTrackingService
     Task<List<TimeEntry>> GetTimeEntriesForDateAsync(DateOnly date);
     Task<List<TimeEntry>> GetTimeEntriesAsync(DateTime startDate, DateTime endDate);
     Task<TimeEntry?> GetLastTimeEntryAsync();
+    Task UpdateTimeEntryTaskAsync(int timeEntryId, int newTaskId);
+    Task UpdateTimeEntryTimesAsync(int timeEntryId, DateTime newStart, DateTime? newEnd);
+    Task<TimeEntry?> GetTimeEntryByIdAsync(int id);
+    Task DeleteTimeEntryAsync(int id);
     bool IsWithinTrackingHours(TimeOnly currentTime, string startTime, string endTime);
     TimeOnly ParseTimeString(string timeString);
 }
@@ -29,6 +33,7 @@ public class TimeTrackingService : ITimeTrackingService
     public async Task<TimeEntry?> GetActiveTimeEntryAsync()
     {
         return await _dbContext.TimeEntries
+            .AsNoTracking()
             .Include(te => te.Task)
             .ThenInclude(t => t.Project)
             .Where(te => te.EndTime == null)
@@ -77,7 +82,11 @@ public class TimeTrackingService : ITimeTrackingService
         try
         {
             System.Diagnostics.Debug.WriteLine("StopTrackingAsync called");
-            var activeEntry = await GetActiveTimeEntryAsync();
+            // Fetch a tracked active entry (do NOT use AsNoTracking here)
+            var activeEntry = await _dbContext.TimeEntries
+                .Where(te => te.EndTime == null)
+                .OrderByDescending(te => te.StartTime)
+                .FirstOrDefaultAsync();
             if (activeEntry != null)
             {
                 System.Diagnostics.Debug.WriteLine($"Stopping active time entry for task {activeEntry.TaskId}");
@@ -105,13 +114,25 @@ public class TimeTrackingService : ITimeTrackingService
         if (activeEntry?.TaskId == newTaskId) return;
 
         // Stop current tracking and start new
-        await StopTrackingAsync();
+        if (activeEntry != null)
+        {
+            // Ensure we close the current entry with a tracked instance
+            var trackedActive = await _dbContext.TimeEntries
+                .Where(te => te.Id == activeEntry.Id && te.EndTime == null)
+                .FirstOrDefaultAsync();
+            if (trackedActive != null)
+            {
+                trackedActive.EndTime = DateTime.Now;
+                await _dbContext.SaveChangesAsync();
+            }
+        }
         await StartTrackingAsync(newTaskId);
     }
 
     public async Task<List<TimeEntry>> GetTimeEntriesForDateAsync(DateOnly date)
     {
         return await _dbContext.TimeEntries
+            .AsNoTracking()
             .Include(te => te.Task)
             .ThenInclude(t => t.Project)
             .Where(te => te.Date == date)
@@ -122,6 +143,7 @@ public class TimeTrackingService : ITimeTrackingService
     public async Task<List<TimeEntry>> GetTimeEntriesAsync(DateTime startDate, DateTime endDate)
     {
         return await _dbContext.TimeEntries
+            .AsNoTracking()
             .Include(te => te.Task)
             .ThenInclude(t => t.Project)
             .Where(te => te.StartTime >= startDate && te.StartTime < endDate)
@@ -132,10 +154,61 @@ public class TimeTrackingService : ITimeTrackingService
     public async Task<TimeEntry?> GetLastTimeEntryAsync()
     {
         return await _dbContext.TimeEntries
+            .AsNoTracking()
             .Include(te => te.Task)
             .ThenInclude(t => t.Project)
             .OrderByDescending(te => te.StartTime)
             .FirstOrDefaultAsync();
+    }
+
+    public async Task<TimeEntry?> GetTimeEntryByIdAsync(int id)
+    {
+        return await _dbContext.TimeEntries
+            .AsNoTracking()
+            .Include(te => te.Task)
+            .ThenInclude(t => t.Project)
+            .FirstOrDefaultAsync(te => te.Id == id);
+    }
+
+    public async Task UpdateTimeEntryTaskAsync(int timeEntryId, int newTaskId)
+    {
+        var entry = await _dbContext.TimeEntries.FirstOrDefaultAsync(te => te.Id == timeEntryId);
+        if (entry == null) throw new InvalidOperationException($"Time entry {timeEntryId} not found");
+
+        var taskExists = await _dbContext.JiraTasks.AnyAsync(t => t.Id == newTaskId);
+        if (!taskExists) throw new InvalidOperationException($"Task {newTaskId} not found");
+
+        entry.TaskId = newTaskId;
+        await _dbContext.SaveChangesAsync();
+
+        // Ensure navigation is loaded if caller uses this context instance further
+        await _dbContext.Entry(entry).Reference(e => e.Task).LoadAsync();
+        if (entry.Task != null)
+        {
+            await _dbContext.Entry(entry.Task).Reference(t => t.Project).LoadAsync();
+        }
+    }
+
+    public async Task UpdateTimeEntryTimesAsync(int timeEntryId, DateTime newStart, DateTime? newEnd)
+    {
+        var entry = await _dbContext.TimeEntries.FirstOrDefaultAsync(te => te.Id == timeEntryId)
+                    ?? throw new InvalidOperationException($"Time entry {timeEntryId} not found");
+
+        if (newEnd.HasValue && newEnd.Value <= newStart)
+            throw new InvalidOperationException("End time must be after start time");
+
+        entry.StartTime = newStart;
+        entry.EndTime = newEnd;
+        entry.Date = DateOnly.FromDateTime(newStart);
+        await _dbContext.SaveChangesAsync();
+    }
+
+    public async Task DeleteTimeEntryAsync(int id)
+    {
+        var entry = await _dbContext.TimeEntries.FirstOrDefaultAsync(te => te.Id == id)
+                    ?? throw new InvalidOperationException($"Time entry {id} not found");
+        _dbContext.TimeEntries.Remove(entry);
+        await _dbContext.SaveChangesAsync();
     }
 
     public bool IsWithinTrackingHours(TimeOnly currentTime, string startTime, string endTime)

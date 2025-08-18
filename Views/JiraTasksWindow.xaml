@@ -18,8 +18,8 @@
         <!-- Bool to visibility inverter -->
         <local:InverseBoolToVisibilityConverter x:Key="InverseBooleanToVisibilityConverter" />
         
-        <!-- Status color converter -->
-        <local:BoolToColorConverter x:Key="StatusColorConverter" />
+    <!-- Status color converter -->
+    <local:JiraStatusCategoryToBrushConverter x:Key="StatusColorConverter" />
     </Window.Resources>
     
     <Grid>
@@ -167,14 +167,14 @@
                                            Width="130"
                                            IsReadOnly="True" />
                         
-                        <DataGridTemplateColumn Header="Status" Width="80">
+                        <DataGridTextColumn Header="Status" 
+                                           Binding="{Binding StatusName}"
+                                           Width="150"
+                                           IsReadOnly="True" />
+                        <DataGridTemplateColumn Header="Cat" Width="60">
                             <DataGridTemplateColumn.CellTemplate>
                                 <DataTemplate>
-                                    <Ellipse Width="12" 
-                                            Height="12" 
-                                            Fill="{Binding IsActive, Converter={StaticResource StatusColorConverter}}"
-                                            HorizontalAlignment="Center"
-                                            VerticalAlignment="Center" />
+                                    <Ellipse Width="12" Height="12" HorizontalAlignment="Center" VerticalAlignment="Center" Fill="{Binding StatusCategoryKey, Converter={StaticResource StatusColorConverter}}" />
                                 </DataTemplate>
                             </DataGridTemplateColumn.CellTemplate>
                         </DataGridTemplateColumn>

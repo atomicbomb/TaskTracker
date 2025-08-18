@@ -18,6 +18,9 @@
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="8.0.0" />
     <PackageReference Include="Microsoft.Extensions.Http" Version="8.0.0" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+  <PackageReference Include="Google.Apis" Version="1.68.0" />
+  <PackageReference Include="Google.Apis.Auth" Version="1.68.0" />
+  <PackageReference Include="Google.Apis.Calendar.v3" Version="1.68.0.3473" />
   </ItemGroup>
 
 </Project>

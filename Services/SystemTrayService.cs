@@ -33,13 +33,14 @@ public class SystemTrayService : ISystemTrayService, IDisposable
     {
         if (_notifyIcon != null) return;
 
-        _notifyIcon = new NotifyIcon
+    _notifyIcon = new NotifyIcon
         {
             Text = "TaskTracker",
             Visible = true
         };
 
         _notifyIcon.DoubleClick += OnNotifyIconDoubleClick;
+    _notifyIcon.ContextMenuStrip = BuildContextMenu();
         
         // Set initial icon
         UpdateStatus(TrayIconStatus.Inactive);
@@ -100,6 +101,19 @@ public class SystemTrayService : ISystemTrayService, IDisposable
     private void OnNotifyIconDoubleClick(object? sender, EventArgs e)
     {
         ShowMainWindow();
+    }
+
+    private ContextMenuStrip BuildContextMenu()
+    {
+        var menu = new ContextMenuStrip();
+        var showItem = new ToolStripMenuItem("Show TaskTracker");
+        showItem.Click += (_, __) => ShowMainWindow();
+        var exitItem = new ToolStripMenuItem("Exit");
+        exitItem.Click += (_, __) => ExitRequested?.Invoke(this, EventArgs.Empty);
+        menu.Items.Add(showItem);
+        menu.Items.Add(new ToolStripSeparator());
+        menu.Items.Add(exitItem);
+        return menu;
     }
 
     public void Dispose()

@@ -12,6 +12,7 @@ public interface IJiraApiService
     Task<List<JiraProject>> GetProjectsAsync();
     Task<List<JiraTask>> GetTasksForUserAsync(List<string> projectKeys);
     Task<JiraTask?> GetTaskByKeyAsync(string taskKey);
+    Task<(string StatusName, string StatusCategoryKey)?> GetIssueStatusAsync(string taskKey);
 }
 
 public class JiraApiService : IJiraApiService, IDisposable
@@ -125,6 +126,8 @@ public class JiraApiService : IJiraApiService, IDisposable
                     JiraTaskNumber = issue.Key,
                     Summary = issue.Fields.Summary,
                     LastUpdated = DateTime.UtcNow,
+                    StatusName = issue.Fields.Status?.Name,
+                    StatusCategoryKey = issue.Fields.Status?.StatusCategory?.Key,
                     // ProjectId will be set when saving to database
                     Project = new JiraProject
                     {
@@ -161,12 +164,36 @@ public class JiraApiService : IJiraApiService, IDisposable
                 JiraTaskNumber = issue.Key,
                 Summary = issue.Fields.Summary,
                 LastUpdated = DateTime.UtcNow,
+                StatusName = issue.Fields.Status?.Name,
+                StatusCategoryKey = issue.Fields.Status?.StatusCategory?.Key,
                 Project = new JiraProject
                 {
                     ProjectCode = issue.Fields.Project.Key,
                     ProjectName = issue.Fields.Project.Name
                 }
             };
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    public async Task<(string StatusName, string StatusCategoryKey)?> GetIssueStatusAsync(string taskKey)
+    {
+        if (!_jiraSettings.IsConfigured || string.IsNullOrWhiteSpace(taskKey)) return null;
+
+        try
+        {
+            var response = await _httpClient.GetAsync($"/rest/api/2/issue/{taskKey}?fields=status");
+            if (!response.IsSuccessStatusCode) return null;
+
+            var content = await response.Content.ReadAsStringAsync();
+            var issue = JsonConvert.DeserializeObject<Models.Jira.JiraIssueResponse>(content);
+            if (issue?.Fields?.Status == null) return null;
+            var statusName = issue.Fields.Status.Name ?? string.Empty;
+            var categoryKey = issue.Fields.Status.StatusCategory?.Key ?? string.Empty;
+            return (statusName, categoryKey);
         }
         catch
         {

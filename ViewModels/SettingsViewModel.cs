@@ -10,6 +10,7 @@ public class SettingsViewModel : ViewModelBase
     private readonly IConfigurationService _configurationService;
     private readonly IJiraApiService _jiraApiService;
     private readonly ITimerService _timerService;
+    private readonly IGoogleIntegrationService _googleService;
     
     private string _serverUrl = string.Empty;
     private string _email = string.Empty;
@@ -24,19 +25,31 @@ public class SettingsViewModel : ViewModelBase
     private string _testConnectionResult = string.Empty;
     private bool _isTestingConnection = false;
 
+    // Google
+    private bool _googleEnabled;
+    private int _googleScanInterval;
+    private string _googleStatus = string.Empty;
+    private string _googleClientId = string.Empty;
+    private string _googleClientSecret = string.Empty;
+
     public SettingsViewModel(
         IConfigurationService configurationService,
         IJiraApiService jiraApiService,
-        ITimerService timerService)
+    ITimerService timerService,
+    IGoogleIntegrationService googleService)
     {
         _configurationService = configurationService;
         _jiraApiService = jiraApiService;
         _timerService = timerService;
+    _googleService = googleService;
 
         // Initialize commands
         TestConnectionCommand = new AsyncRelayCommand(TestConnection, () => !_isTestingConnection);
-        SaveSettingsCommand = new AsyncRelayCommand(SaveSettings);
+    SaveSettingsCommand = new AsyncRelayCommand(SaveSettings);
         CancelCommand = new RelayCommand(Cancel);
+    ConnectGoogleCommand = new AsyncRelayCommand(ConnectGoogle);
+    DisconnectGoogleCommand = new AsyncRelayCommand(DisconnectGoogle);
+    TestGoogleCommand = new AsyncRelayCommand(TestGoogle);
 
         LoadSettings();
     }
@@ -128,6 +141,9 @@ public class SettingsViewModel : ViewModelBase
     public ICommand TestConnectionCommand { get; }
     public ICommand SaveSettingsCommand { get; }
     public ICommand CancelCommand { get; }
+    public ICommand ConnectGoogleCommand { get; }
+    public ICommand DisconnectGoogleCommand { get; }
+    public ICommand TestGoogleCommand { get; }
 
     // Events
     public event EventHandler? SettingsSaved;
@@ -148,6 +164,13 @@ public class SettingsViewModel : ViewModelBase
         TrackingEndTime = appSettings.TrackingEndTime;
         DefaultLunchDuration = appSettings.DefaultLunchDurationMinutes;
         SelectedTheme = appSettings.Theme;
+
+    // Google
+    GoogleEnabled = appSettings.Google.Enabled;
+    GoogleScanInterval = appSettings.Google.ScanIntervalMinutes;
+    GoogleClientId = appSettings.Google.ClientId;
+    GoogleClientSecret = appSettings.Google.ClientSecret;
+    GoogleStatus = _googleService.IsConnected ? "Connected" : "Not connected";
     }
 
     private async Task TestConnection()
@@ -207,6 +230,10 @@ public class SettingsViewModel : ViewModelBase
                 DefaultLunchDurationMinutes = DefaultLunchDuration,
                 Theme = SelectedTheme
             };
+            newAppSettings.Google.Enabled = GoogleEnabled;
+            newAppSettings.Google.ScanIntervalMinutes = GoogleScanInterval;
+            newAppSettings.Google.ClientId = GoogleClientId?.Trim() ?? string.Empty;
+            newAppSettings.Google.ClientSecret = GoogleClientSecret ?? string.Empty;
             _configurationService.UpdateAppSettings(newAppSettings);
 
             // Save to file
@@ -215,6 +242,7 @@ public class SettingsViewModel : ViewModelBase
             // Update timer intervals
             _timerService.SetPromptInterval(PromptInterval);
             _timerService.SetUpdateInterval(UpdateInterval);
+            _timerService.SetCalendarScanInterval(GoogleEnabled ? GoogleScanInterval : 0);
 
             // Update theme if changed
             if (System.Windows.Application.Current is App app)
@@ -237,6 +265,63 @@ public class SettingsViewModel : ViewModelBase
     private void Cancel()
     {
         SettingsCancelled?.Invoke(this, EventArgs.Empty);
+    }
+
+    // Google bindings
+    public bool GoogleEnabled
+    {
+        get => _googleEnabled;
+        set => SetProperty(ref _googleEnabled, value);
+    }
+
+    public int GoogleScanInterval
+    {
+        get => _googleScanInterval;
+        set => SetProperty(ref _googleScanInterval, value);
+    }
+
+    public string GoogleStatus
+    {
+        get => _googleStatus;
+        set => SetProperty(ref _googleStatus, value);
+    }
+
+    public string GoogleClientId
+    {
+        get => _googleClientId;
+        set => SetProperty(ref _googleClientId, value);
+    }
+
+    public string GoogleClientSecret
+    {
+        get => _googleClientSecret;
+        set => SetProperty(ref _googleClientSecret, value);
+    }
+
+    private async Task ConnectGoogle()
+    {
+        if (string.IsNullOrWhiteSpace(GoogleClientId) || string.IsNullOrWhiteSpace(GoogleClientSecret))
+        {
+            GoogleStatus = "Client ID/Secret required";
+            return;
+        }
+
+        GoogleStatus = "Connecting...";
+        var ok = await _googleService.ConnectAsync();
+        GoogleStatus = ok ? "Connected" : "Failed to connect";
+    }
+
+    private async Task DisconnectGoogle()
+    {
+        await _googleService.DisconnectAsync();
+        GoogleStatus = "Disconnected";
+    }
+
+    private async Task TestGoogle()
+    {
+        GoogleStatus = "Testing...";
+        var ok = await _googleService.TestConnectionAsync();
+        GoogleStatus = ok ? "OK" : "Failed";
     }
 
     private bool ValidateSettings()

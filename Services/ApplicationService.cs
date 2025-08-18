@@ -45,6 +45,7 @@ public class ApplicationService : IApplicationService
             // Set up timer event handlers
             _timerService.TaskPromptRequested += OnTaskPromptRequested;
             _timerService.UpdateDataRequested += OnUpdateDataRequested;
+            _timerService.CalendarScanRequested += OnCalendarScanRequested;
             _timerService.LunchBreakEnded += OnLunchBreakEnded;
             _timerService.TrackingStarted += OnTrackingStarted;
             _timerService.TrackingEnded += OnTrackingEnded;
@@ -61,6 +62,35 @@ public class ApplicationService : IApplicationService
                 using var scope = _serviceProvider.CreateScope();
                 var timeTrackingService = scope.ServiceProvider.GetRequiredService<ITimeTrackingService>();
                 var taskManagementService = scope.ServiceProvider.GetRequiredService<ITaskManagementService>();
+
+                // Proactively refresh projects and tasks from JIRA
+                try
+                {
+                    await taskManagementService.RefreshProjectsFromJiraAsync();
+                    await taskManagementService.RefreshTasksFromJiraAsync();
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"Initial JIRA refresh failed: {ex.Message}");
+                }
+                
+                // Kick off an initial Google scan if enabled
+                try
+                {
+                    if (_configurationService.AppSettings.Google.Enabled)
+                    {
+                        var google = scope.ServiceProvider.GetRequiredService<IGoogleIntegrationService>();
+                        var today = DateOnly.FromDateTime(DateTime.Now);
+                        int diff = (7 + (today.DayOfWeek - DayOfWeek.Monday)) % 7;
+                        var start = today.AddDays(-diff);
+                        var end = start.AddDays(11);
+                        _ = google.ScanCalendarAsync(start, end);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"Initial Google scan failed: {ex.Message}");
+                }
                 
                 var isWithinHours = timeTrackingService.IsWithinTrackingHours(
                     now,
@@ -310,6 +340,32 @@ public class ApplicationService : IApplicationService
             await Task.Delay(1000); // Brief delay
             ShowTaskPrompt();
         });
+    }
+
+    private async void OnCalendarScanRequested(object? sender, EventArgs e)
+    {
+        try
+        {
+            if (!_configurationService.AppSettings.Google.Enabled)
+                return;
+
+            using var scope = _serviceProvider.CreateScope();
+            var google = scope.ServiceProvider.GetRequiredService<IGoogleIntegrationService>();
+
+            // Compute Monday of current week and Friday of next week
+            var today = DateOnly.FromDateTime(DateTime.Now);
+            int diff = (7 + (today.DayOfWeek - DayOfWeek.Monday)) % 7;
+            var start = today.AddDays(-diff);
+            // Friday of next week = start + 11 days
+            var end = start.AddDays(11);
+
+            var added = await google.ScanCalendarAsync(start, end);
+            System.Diagnostics.Debug.WriteLine($"Google scan complete, tasks added: {added}");
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Error during Google calendar scan: {ex.Message}");
+        }
     }
 
     private async void OnTrackingStarted(object? sender, EventArgs e)

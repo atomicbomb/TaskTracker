@@ -14,6 +14,7 @@ public interface ITaskManagementService
     Task RefreshProjectsFromJiraAsync();
     Task RefreshTasksFromJiraAsync();
     Task<JiraTask?> AddTaskByNumberAsync(string taskNumber);
+    Task<JiraTask> AddManualTaskAsync(int projectId, string summary);
     Task RemoveTaskAsync(int taskId);
     Task<JiraTask?> GetTaskByIdAsync(int taskId);
     Task<JiraTask?> GetTaskByNumberAsync(string taskNumber);
@@ -118,6 +119,8 @@ public class TaskManagementService : ITaskManagementService
             {
                 // Update existing task
                 existingTask.Summary = jiraTask.Summary;
+                existingTask.StatusName = jiraTask.StatusName;
+                existingTask.StatusCategoryKey = jiraTask.StatusCategoryKey;
                 existingTask.LastUpdated = DateTime.UtcNow;
                 existingTask.IsActive = true; // Re-activate if it was previously deactivated
             }
@@ -128,6 +131,8 @@ public class TaskManagementService : ITaskManagementService
                 {
                     JiraTaskNumber = jiraTask.JiraTaskNumber,
                     Summary = jiraTask.Summary,
+                    StatusName = jiraTask.StatusName,
+                    StatusCategoryKey = jiraTask.StatusCategoryKey,
                     ProjectId = project.Id,
                     IsActive = true,
                     LastUpdated = DateTime.UtcNow
@@ -182,6 +187,32 @@ public class TaskManagementService : ITaskManagementService
         await _dbContext.SaveChangesAsync();
 
         return newTask;
+    }
+
+    public async Task<JiraTask> AddManualTaskAsync(int projectId, string summary)
+    {
+        if (string.IsNullOrWhiteSpace(summary))
+            throw new ArgumentException("Summary is required", nameof(summary));
+
+        var project = await _dbContext.JiraProjects.FirstOrDefaultAsync(p => p.Id == projectId)
+                      ?? throw new InvalidOperationException($"Project {projectId} not found");
+
+        // Create a pseudo JIRA key for manual tasks, ensure uniqueness by timestamp
+        var keyPrefix = project.ProjectCode;
+        var key = $"{keyPrefix}-MAN-{DateTime.UtcNow:yyyyMMddHHmmssfff}";
+
+        var task = new JiraTask
+        {
+            JiraTaskNumber = key,
+            Summary = summary,
+            ProjectId = project.Id,
+            IsActive = true,
+            LastUpdated = DateTime.UtcNow
+        };
+
+        _dbContext.JiraTasks.Add(task);
+        await _dbContext.SaveChangesAsync();
+        return task;
     }
 
     public async Task RemoveTaskAsync(int taskId)

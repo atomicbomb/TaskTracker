@@ -29,4 +29,16 @@ public class TimeEntry
     // Calculated property for current duration (if still active)
     [NotMapped]
     public TimeSpan CurrentDuration => (EndTime ?? DateTime.Now) - StartTime;
+
+    // Convenience for UI binding: total minutes (uses EndTime if set, otherwise now)
+    [NotMapped]
+    public int DurationMinutes
+    {
+        get
+        {
+            var effectiveEnd = EndTime ?? DateTime.Now;
+            if (effectiveEnd < StartTime) return 0;
+            return (int)Math.Round((effectiveEnd - StartTime).TotalMinutes);
+        }
+    }
 }

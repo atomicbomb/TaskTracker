@@ -20,6 +20,8 @@ public class JiraTaskViewModel : ViewModelBase
     public string Summary => _task.Summary;
     public DateTime LastUpdated => _task.LastUpdated;
     public bool IsActive => _task.IsActive;
+    public string? StatusName => _task.StatusName;
+    public string? StatusCategoryKey => _task.StatusCategoryKey;
 
     public JiraTask ToModel() => _task;
 }

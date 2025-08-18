@@ -8,10 +8,12 @@ public interface IConfigurationService
 {
     AppSettings AppSettings { get; }
     JiraSettings JiraSettings { get; }
+    GoogleSettings GoogleSettings { get; }
     Task SaveSettingsAsync();
     Task LoadSettingsAsync();
     void UpdateJiraSettings(string serverUrl, string email, string apiToken);
     void UpdateAppSettings(AppSettings newSettings);
+    void UpdateGoogleSettings(GoogleSettings newSettings);
 }
 
 public class ConfigurationService : IConfigurationService
@@ -21,6 +23,7 @@ public class ConfigurationService : IConfigurationService
 
     public AppSettings AppSettings => _configData.AppSettings;
     public JiraSettings JiraSettings => _configData.JiraSettings;
+    public GoogleSettings GoogleSettings => _configData.AppSettings.Google;
 
     public ConfigurationService()
     {
@@ -92,6 +95,11 @@ public class ConfigurationService : IConfigurationService
     public void UpdateAppSettings(AppSettings newSettings)
     {
         _configData.AppSettings = newSettings;
+    }
+
+    public void UpdateGoogleSettings(GoogleSettings newSettings)
+    {
+        _configData.AppSettings.Google = newSettings;
     }
 
     private class ConfigurationData

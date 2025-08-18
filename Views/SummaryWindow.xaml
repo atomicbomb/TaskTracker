@@ -20,6 +20,10 @@
         
         <!-- View selector converter -->
         <local:StringToBooleanConverter x:Key="StringToBooleanConverter" />
+    <!-- String equals to Visibility converter -->
+    <local:StringEqualsToVisibilityConverter x:Key="StringEqualsToVisibilityConverter" />
+    <!-- String in list to Visibility converter -->
+    <local:StringInListToVisibilityConverter x:Key="StringInListToVisibilityConverter" />
     </Window.Resources>
     
     <Grid>
@@ -85,9 +89,9 @@
                 
                 <!-- Date Navigation -->
                 <StackPanel Grid.Row="2" Orientation="Horizontal">
-                    <!-- Daily Navigation -->
+                    <!-- Daily/Entries Navigation -->
                     <StackPanel Orientation="Horizontal" 
-                               Visibility="{Binding SelectedView, Converter={StaticResource StringToBooleanConverter}, ConverterParameter=Daily}">
+                               Visibility="{Binding SelectedView, Converter={StaticResource StringInListToVisibilityConverter}, ConverterParameter=Daily|Entries}">
                         <Button Content="◀ Previous Day"
                                Command="{Binding PreviousDayCommand}"
                                Height="30"
@@ -119,7 +123,7 @@
                     
                     <!-- Weekly Navigation -->
                     <StackPanel Orientation="Horizontal" 
-                               Visibility="{Binding SelectedView, Converter={StaticResource StringToBooleanConverter}, ConverterParameter=Weekly}">
+                               Visibility="{Binding SelectedView, Converter={StaticResource StringEqualsToVisibilityConverter}, ConverterParameter=Weekly}">
                         <Button Content="◀ Previous Week"
                                Command="{Binding PreviousWeekCommand}"
                                Height="30"
@@ -202,7 +206,7 @@
                     </StackPanel>
                     
                     <!-- Daily Summary View -->
-                    <StackPanel Visibility="{Binding SelectedView, Converter={StaticResource StringToBooleanConverter}, ConverterParameter=Daily}"
+                    <StackPanel Visibility="{Binding SelectedView, Converter={StaticResource StringEqualsToVisibilityConverter}, ConverterParameter=Daily}"
                                Margin="20">
                         <TextBlock Text="{Binding DailySummary.DateDisplay, Mode=OneWay}"
                                   FontSize="18"
@@ -269,7 +273,7 @@
                     </StackPanel>
                     
                     <!-- Weekly Summary View -->
-                    <StackPanel Visibility="{Binding SelectedView, Converter={StaticResource StringToBooleanConverter}, ConverterParameter=Weekly}"
+                    <StackPanel Visibility="{Binding SelectedView, Converter={StaticResource StringEqualsToVisibilityConverter}, ConverterParameter=Weekly}"
                                Margin="20">
                         <TextBlock Text="{Binding WeeklySummary.WeekDisplay, Mode=OneWay}"
                                   FontSize="18"
@@ -333,8 +337,10 @@
                     </StackPanel>
                     
                     <!-- Time Entries View -->
-                    <DataGrid Visibility="{Binding SelectedView, Converter={StaticResource StringToBooleanConverter}, ConverterParameter=Entries}"
+                    <DataGrid x:Name="EntriesGrid"
+                             Visibility="{Binding SelectedView, Converter={StaticResource StringEqualsToVisibilityConverter}, ConverterParameter=Entries}"
                              ItemsSource="{Binding TimeEntries}"
+                             SelectedItem="{Binding SelectedEntry, Mode=TwoWay}"
                              AutoGenerateColumns="False"
                              CanUserAddRows="False"
                              CanUserDeleteRows="False"
@@ -346,7 +352,8 @@
                              Foreground="{DynamicResource Foreground}"
                              BorderBrush="{DynamicResource BorderBrush}"
                              RowBackground="{DynamicResource CardBackground}"
-                             AlternatingRowBackground="{DynamicResource AlternateRowBackground}">
+                             AlternatingRowBackground="{DynamicResource AlternateRowBackground}"
+                             CellEditEnding="EntriesGrid_CellEditEnding">
                         
                         <DataGrid.Columns>
                             <DataGridTextColumn Header="Date" 
@@ -354,35 +361,77 @@
                                                Width="100"
                                                IsReadOnly="True" />
                             
-                            <DataGridTextColumn Header="Start" 
-                                               Binding="{Binding StartTime, StringFormat='{}{0:HH:mm}'}"
-                                               Width="80"
-                                               IsReadOnly="True" />
-                            
-                            <DataGridTextColumn Header="End" 
-                                               Binding="{Binding EndTime, StringFormat='{}{0:HH:mm}'}"
-                                               Width="80"
-                                               IsReadOnly="True" />
+                            <DataGridTemplateColumn Header="Start" Width="100">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding StartTime, StringFormat='{}{0:HH:mm}'}"/>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                                <DataGridTemplateColumn.CellEditingTemplate>
+                                    <DataTemplate>
+                                        <TextBox Text="{Binding StartTime, StringFormat='{}{0:HH:mm}', Mode=OneWay}"/>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellEditingTemplate>
+                            </DataGridTemplateColumn>
+
+                            <DataGridTemplateColumn Header="End" Width="100">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <TextBlock>
+                                            <TextBlock.Text>
+                                                <Binding Path="EndTime" StringFormat="{}{0:HH:mm}">
+                                                    <Binding.FallbackValue>—</Binding.FallbackValue>
+                                                </Binding>
+                                            </TextBlock.Text>
+                                        </TextBlock>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                                <DataGridTemplateColumn.CellEditingTemplate>
+                                    <DataTemplate>
+                                        <TextBox Text="{Binding EndTime, StringFormat='{}{0:HH:mm}', Mode=OneWay}"/>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellEditingTemplate>
+                            </DataGridTemplateColumn>
                             
                             <DataGridTextColumn Header="Duration" 
-                                               Binding="{Binding DurationMinutes, StringFormat='{}{0:D2} min'}"
+                                               Binding="{Binding DurationMinutes, StringFormat='{}{0} min'}"
                                                Width="80"
                                                IsReadOnly="True" />
                             
                             <DataGridTextColumn Header="Project" 
-                                               Binding="{Binding JiraTask.Project.ProjectName}"
+                                               Binding="{Binding Task.Project.ProjectName}"
                                                Width="120"
                                                IsReadOnly="True" />
                             
-                            <DataGridTextColumn Header="Task #" 
-                                               Binding="{Binding JiraTask.JiraTaskNumber}"
-                                               Width="100"
-                                               IsReadOnly="True" />
+                            <DataGridTemplateColumn Header="Task #" Width="140">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding Task.JiraTaskNumber}"/>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                                <DataGridTemplateColumn.CellEditingTemplate>
+                                    <DataTemplate>
+                                        <!-- OneWay to avoid mutating the shared JiraTask instance; we apply changes in code-behind -->
+                                        <TextBox Text="{Binding Task.JiraTaskNumber, Mode=OneWay}"/>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellEditingTemplate>
+                            </DataGridTemplateColumn>
                             
                             <DataGridTextColumn Header="Summary" 
-                                               Binding="{Binding JiraTask.Summary}"
+                                               Binding="{Binding Task.Summary}"
                                                Width="*"
                                                IsReadOnly="True" />
+
+                            <!-- Delete Column -->
+                            <DataGridTemplateColumn Header="" Width="60">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                    <Button Content="Delete"
+                        Command="{Binding DataContext.DeleteEntryCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
+                        CommandParameter="{Binding}"/>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
                         </DataGrid.Columns>
                     </DataGrid>
                 </Grid>
