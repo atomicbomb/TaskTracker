@@ -233,69 +233,70 @@ public class ApplicationService : IApplicationService
     {
         try
         {
-            using var scope = _serviceProvider.CreateScope();
-            var viewModel = scope.ServiceProvider.GetRequiredService<TaskPromptViewModel>();
-            var window = new TaskPromptWindow(viewModel);
-            
-            // Make sure the window is visible and on top
-            window.WindowStartupLocation = System.Windows.WindowStartupLocation.CenterScreen;
-            window.Topmost = true;
-            window.ShowInTaskbar = true;
-            window.WindowState = System.Windows.WindowState.Normal;
-
-            // Set up event handlers
-            viewModel.TaskSelected += (s, e) =>
+            System.Windows.Application.Current.Dispatcher.Invoke(() =>
             {
-                try
-                {
-                    System.Diagnostics.Debug.WriteLine($"Task selected: {e.SelectedTask.Summary} (ID: {e.SelectedTask.Id})");
-                    
-                    // Task selection and switching is already handled by the viewmodel
-                    // Just log the selection
-                }
-                catch (Exception ex)
-                {
-                    System.Diagnostics.Debug.WriteLine($"Error in TaskSelected event handler: {ex.Message}");
-                    System.Windows.MessageBox.Show(
-                        $"Error handling task selection:\n\n{ex.Message}\n\nStack trace:\n{ex.StackTrace}",
-                        "Task Selection Error",
-                        System.Windows.MessageBoxButton.OK,
-                        System.Windows.MessageBoxImage.Error);
-                }
-            };
+                using var scope = _serviceProvider.CreateScope();
+                var viewModel = scope.ServiceProvider.GetRequiredService<TaskPromptViewModel>();
+                var window = new TaskPromptWindow(viewModel);
 
-            viewModel.LunchStarted += (s, e) =>
-            {
-                try
-                {
-                    _timerService.StartLunchBreak(e.DurationMinutes);
-                }
-                catch (Exception ex)
-                {
-                    System.Diagnostics.Debug.WriteLine($"Error starting lunch break: {ex.Message}");
-                }
-            };
+                // Make sure the window is visible and on top
+                window.WindowStartupLocation = System.Windows.WindowStartupLocation.CenterScreen;
+                window.Topmost = true;
+                window.ShowInTaskbar = true;
+                window.WindowState = System.Windows.WindowState.Normal;
 
-            viewModel.PromptTimedOut += async (s, e) =>
-            {
-                try
+                // Set up event handlers
+                viewModel.TaskSelected += (s, e) =>
                 {
-                    // If no selection made, continue with current task if any
-                    using var timeScope = _serviceProvider.CreateScope();
-                    var timeService = timeScope.ServiceProvider.GetRequiredService<ITimeTrackingService>();
-                    var activeEntry = await timeService.GetActiveTimeEntryAsync();
-                    
-                    System.Diagnostics.Debug.WriteLine("Task prompt timed out");
-                    // Continue silently with existing active task
-                }
-                catch (Exception ex)
-                {
-                    System.Diagnostics.Debug.WriteLine($"Error in PromptTimedOut handler: {ex.Message}");
-                }
-            };
+                    try
+                    {
+                        System.Diagnostics.Debug.WriteLine($"Task selected: {e.SelectedTask.Summary} (ID: {e.SelectedTask.Id})");
+                        // Task selection and switching is already handled by the viewmodel
+                        // Just log the selection
+                    }
+                    catch (Exception ex)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"Error in TaskSelected event handler: {ex.Message}");
+                        System.Windows.MessageBox.Show(
+                            $"Error handling task selection:\n\n{ex.Message}\n\nStack trace:\n{ex.StackTrace}",
+                            "Task Selection Error",
+                            System.Windows.MessageBoxButton.OK,
+                            System.Windows.MessageBoxImage.Error);
+                    }
+                };
 
-            // Show the dialog
-            var result = window.ShowDialog();
+                viewModel.LunchStarted += (s, e) =>
+                {
+                    try
+                    {
+                        _timerService.StartLunchBreak(e.DurationMinutes);
+                    }
+                    catch (Exception ex)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"Error starting lunch break: {ex.Message}");
+                    }
+                };
+
+                viewModel.PromptTimedOut += async (s, e) =>
+                {
+                    try
+                    {
+                        // If no selection made, continue with current task if any
+                        using var timeScope = _serviceProvider.CreateScope();
+                        var timeService = timeScope.ServiceProvider.GetRequiredService<ITimeTrackingService>();
+                        var activeEntry = await timeService.GetActiveTimeEntryAsync();
+                        System.Diagnostics.Debug.WriteLine("Task prompt timed out");
+                        // Continue silently with existing active task
+                    }
+                    catch (Exception ex)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"Error in PromptTimedOut handler: {ex.Message}");
+                    }
+                };
+
+                // Show the dialog
+                var result = window.ShowDialog();
+            });
         }
         catch (Exception ex)
         {

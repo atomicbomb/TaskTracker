@@ -69,7 +69,7 @@ public partial class App : System.Windows.Application
     private void ConfigureServices(IServiceCollection services)
     {
         // Database
-        services.AddDbContext<TaskTrackerDbContext>(options =>
+        services.AddDbContextFactory<TaskTrackerDbContext>(options =>
         {
             var dbPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "tasktracker.db");
             options.UseSqlite($"Data Source={dbPath}");

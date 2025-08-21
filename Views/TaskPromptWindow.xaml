@@ -165,7 +165,7 @@
                 
                 <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Center">
                     <TextBlock Text="Duration:" FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,0,10,0"/>
-                    <TextBox Text="{Binding LunchDuration}" Width="60" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    <TextBox Text="{Binding LunchDuration, UpdateSourceTrigger=PropertyChanged}" Width="60" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                     <TextBlock Text="minutes" VerticalAlignment="Center" Margin="10,0,0,0"/>
                 </StackPanel>
                 

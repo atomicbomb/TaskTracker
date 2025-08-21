@@ -12,6 +12,9 @@
         MinWidth="600"
         Style="{StaticResource MainWindowStyle}"
         WindowStartupLocation="CenterScreen">
+    <Window.Resources>
+        <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
+    </Window.Resources>
     
     <Grid Margin="20">
         <Grid.RowDefinitions>
@@ -62,6 +65,12 @@
                     <StackPanel Grid.Row="4" Orientation="Horizontal">
                         <TextBlock Text="Current Task:" FontWeight="SemiBold" Width="120"/>
                         <TextBlock Text="{Binding CurrentTaskDisplay}" Foreground="{StaticResource TextSecondaryBrush}"/>
+                    </StackPanel>
+                    <!-- Lunch Timer Section -->
+                    <StackPanel Grid.Row="5" Orientation="Horizontal" Margin="0,24,0,0" Visibility="{Binding IsOnLunchBreak, Converter={StaticResource BooleanToVisibilityConverter}}">
+                        <TextBlock Text="At Lunch:" FontWeight="SemiBold" Width="120"/>
+                        <TextBlock Text="{Binding LunchTimeRemaining}" Width="80"/>
+                        <Button Content="Cancel Lunch" Command="{Binding CancelLunchCommand}" Margin="10,0,0,0"/>
                     </StackPanel>
                 </Grid>
             </Border>
