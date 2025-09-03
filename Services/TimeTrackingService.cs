@@ -19,6 +19,10 @@ public interface ITimeTrackingService
     Task DeleteTimeEntryAsync(int id);
     bool IsWithinTrackingHours(TimeOnly currentTime, string startTime, string endTime);
     TimeOnly ParseTimeString(string timeString);
+    Task<TimeEntry> CreateLunchTimeEntryAsync(DateTime start, DateTime end, JiraTask lunchTask);
+    Task<int> CreateOpenTimeEntryAsync(int taskId, DateTime start);
+    Task UpdateTimeEntryEndAsync(int timeEntryId, DateTime end);
+    Task<TimeEntry> CreateManualClosedEntryAsync(int taskId, DateTime start, DateTime end);
 }
 
 public class TimeTrackingService : ITimeTrackingService
@@ -220,6 +224,91 @@ public class TimeTrackingService : ITimeTrackingService
                     ?? throw new InvalidOperationException($"Time entry {id} not found");
         db.TimeEntries.Remove(entry);
         await db.SaveChangesAsync();
+    }
+
+    public async Task<TimeEntry> CreateLunchTimeEntryAsync(DateTime start, DateTime end, JiraTask lunchTask)
+    {
+        if (end <= start) throw new ArgumentException("Lunch end must be after start");
+
+        using var db = _dbContextFactory.CreateDbContext();
+
+        // Ensure task tracked in this context
+        var task = await db.JiraTasks.FirstOrDefaultAsync(t => t.Id == lunchTask.Id);
+        if (task == null)
+        {
+            task = new JiraTask
+            {
+                Id = lunchTask.Id,
+                JiraTaskNumber = lunchTask.JiraTaskNumber,
+                Summary = lunchTask.Summary,
+                ProjectId = lunchTask.ProjectId,
+                IsActive = true,
+                LastUpdated = DateTime.UtcNow
+            };
+            db.Attach(task);
+        }
+
+        var entry = new TimeEntry
+        {
+            TaskId = task.Id,
+            StartTime = start,
+            EndTime = end,
+            Date = DateOnly.FromDateTime(start)
+        };
+        db.TimeEntries.Add(entry);
+        await db.SaveChangesAsync();
+        return entry;
+    }
+
+    public async Task<int> CreateOpenTimeEntryAsync(int taskId, DateTime start)
+    {
+        using var db = _dbContextFactory.CreateDbContext();
+        var entry = new TimeEntry
+        {
+            TaskId = taskId,
+            StartTime = start,
+            Date = DateOnly.FromDateTime(start),
+            EndTime = null
+        };
+        db.TimeEntries.Add(entry);
+        await db.SaveChangesAsync();
+        return entry.Id;
+    }
+
+    public async Task UpdateTimeEntryEndAsync(int timeEntryId, DateTime end)
+    {
+        using var db = _dbContextFactory.CreateDbContext();
+        var entry = await db.TimeEntries.FirstOrDefaultAsync(te => te.Id == timeEntryId) ?? throw new InvalidOperationException($"Time entry {timeEntryId} not found");
+        if (end <= entry.StartTime) throw new ArgumentException("End must be after start");
+        entry.EndTime = end;
+        await db.SaveChangesAsync();
+    }
+
+    public async Task<TimeEntry> CreateManualClosedEntryAsync(int taskId, DateTime start, DateTime end)
+    {
+        if (end <= start) throw new ArgumentException("End must be after start");
+        using var db = _dbContextFactory.CreateDbContext();
+        // Ensure task exists
+        var taskExists = await db.JiraTasks.AnyAsync(t => t.Id == taskId);
+        if (!taskExists) throw new InvalidOperationException($"Task {taskId} not found");
+
+        var entry = new TimeEntry
+        {
+            TaskId = taskId,
+            StartTime = start,
+            EndTime = end,
+            Date = DateOnly.FromDateTime(start)
+        };
+        db.TimeEntries.Add(entry);
+        await db.SaveChangesAsync();
+
+        // Reload with navigation properties
+        await db.Entry(entry).Reference(e => e.Task).LoadAsync();
+        if (entry.Task != null)
+        {
+            await db.Entry(entry.Task).Reference(t => t.Project).LoadAsync();
+        }
+        return entry;
     }
 
     public bool IsWithinTrackingHours(TimeOnly currentTime, string startTime, string endTime)

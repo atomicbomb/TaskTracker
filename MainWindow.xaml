@@ -16,7 +16,7 @@
         <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
     </Window.Resources>
     
-    <Grid Margin="20">
+    <Grid Margin="10">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
@@ -31,8 +31,8 @@
                    Margin="0,0,0,20"
                    Foreground="{StaticResource TextPrimaryBrush}"/>
         
-        <!-- Main Content -->
-        <Grid Grid.Row="1">
+    <!-- Main Content -->
+    <Grid Grid.Row="1" HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="20"/>
@@ -40,12 +40,12 @@
             </Grid.RowDefinitions>
             
             <!-- Status Section -->
-            <Border Grid.Row="0" 
+        <Border Grid.Row="0" 
                     Background="{StaticResource CardBrush}" 
                     BorderBrush="{StaticResource BorderBrush}" 
                     BorderThickness="1" 
                     CornerRadius="4" 
-                    Padding="20">
+            Padding="20" HorizontalAlignment="Stretch">
                 <Grid>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
@@ -76,7 +76,7 @@
             </Border>
             
             <!-- Navigation Buttons -->
-            <Grid Grid.Row="2">
+            <Grid Grid.Row="2" HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="*"/>
@@ -137,7 +137,7 @@
         </Grid>
         
         <!-- Footer -->
-        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right">
+    <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Stretch">
             <TextBlock Text="{Binding StatusText}" 
                        Foreground="{StaticResource TextTertiaryBrush}" 
                        FontSize="12"/>

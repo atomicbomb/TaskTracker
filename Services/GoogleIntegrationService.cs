@@ -19,6 +19,7 @@ public interface IGoogleIntegrationService
     Task<bool> TestConnectionAsync(CancellationToken ct = default);
     Task<int> ScanCalendarAsync(DateOnly from, DateOnly to, CancellationToken ct = default);
     bool IsConnected { get; }
+    string? LastError { get; }
 }
 
 public class GoogleIntegrationService : IGoogleIntegrationService
@@ -29,6 +30,8 @@ public class GoogleIntegrationService : IGoogleIntegrationService
     private readonly IConfigurationService _config;
     private readonly ITaskManagementService _tasks;
     private readonly IJiraApiService _jiraApi;
+
+    public string? LastError { get; private set; }
 
     public GoogleIntegrationService(IConfigurationService config, ITaskManagementService tasks, IJiraApiService jiraApi)
     {
@@ -41,6 +44,7 @@ public class GoogleIntegrationService : IGoogleIntegrationService
 
     private async Task<CalendarService?> CreateCalendarServiceAsync(CancellationToken ct)
     {
+        LastError = null;
         var gs = _config.AppSettings.Google;
 
         if (string.IsNullOrWhiteSpace(gs.ClientId) || string.IsNullOrWhiteSpace(gs.ClientSecret))
@@ -49,26 +53,67 @@ public class GoogleIntegrationService : IGoogleIntegrationService
         var dataStorePath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "TaskTracker.Google");
         var dataStore = new FileDataStore(dataStorePath, true);
 
-        var flow = new GoogleAuthorizationCodeFlow(new GoogleAuthorizationCodeFlow.Initializer
+        GoogleAuthorizationCodeFlow? flow = null;
+        try
         {
-            ClientSecrets = new ClientSecrets
+            flow = new GoogleAuthorizationCodeFlow(new GoogleAuthorizationCodeFlow.Initializer
             {
-                ClientId = gs.ClientId,
-                ClientSecret = gs.ClientSecret
-            },
-            Scopes = Scopes,
-            DataStore = dataStore
-        });
+                ClientSecrets = new ClientSecrets
+                {
+                    ClientId = gs.ClientId,
+                    ClientSecret = gs.ClientSecret
+                },
+                Scopes = Scopes,
+                DataStore = dataStore
+            });
+        }
+        catch (Exception ex)
+        {
+            LastError = "Failed to initialize Google auth flow: " + ex.Message;
+            System.Diagnostics.Debug.WriteLine("[GoogleIntegration] Flow init error: " + ex);
+            return null;
+        }
 
         var codeReceiver = new LocalServerCodeReceiver();
-        var app = new AuthorizationCodeInstalledApp(flow, codeReceiver);
-        var credential = await app.AuthorizeAsync("user", ct);
+    var app = new AuthorizationCodeInstalledApp(flow, codeReceiver);
+        UserCredential? credential = null;
+        try
+        {
+            credential = await app.AuthorizeAsync("user", ct);
+        }
+        catch (TaskCanceledException)
+        {
+            LastError = "Authorization cancelled";
+            return null;
+        }
+        catch (TokenResponseException tex)
+        {
+            var err = tex.Error != null ? ($"{tex.Error.Error}: {tex.Error.ErrorDescription}") : tex.Message;
+            LastError = "Token response error: " + err;
+            System.Diagnostics.Debug.WriteLine("[GoogleIntegration] Token error: " + tex);
+            return null;
+        }
+        catch (Exception ex)
+        {
+            LastError = "Authorization failed: " + ex.Message;
+            System.Diagnostics.Debug.WriteLine("[GoogleIntegration] Auth error: " + ex);
+            return null;
+        }
 
         // Persist refresh token back to settings (if available)
-    if (!string.IsNullOrWhiteSpace(credential.Token?.RefreshToken))
+        if (!string.IsNullOrWhiteSpace(credential?.Token?.RefreshToken))
         {
-            gs.RefreshToken = credential.Token.RefreshToken;
-            await _config.SaveSettingsAsync();
+            if (!string.Equals(gs.RefreshToken, credential.Token.RefreshToken, StringComparison.Ordinal))
+            {
+                gs.RefreshToken = credential.Token.RefreshToken;
+                await _config.SaveSettingsAsync();
+            }
+        }
+        else if (string.IsNullOrWhiteSpace(gs.RefreshToken))
+        {
+            // No refresh token returned & none stored – likely due to using wrong OAuth client type (should be "Desktop app")
+            LastError = "No refresh token returned. Ensure the OAuth client type is 'Desktop app' and try again.";
+            System.Diagnostics.Debug.WriteLine("[GoogleIntegration] Missing refresh token after auth.");
         }
 
         var service = new CalendarService(new BaseClientService.Initializer
@@ -85,10 +130,17 @@ public class GoogleIntegrationService : IGoogleIntegrationService
         try
         {
             var service = await CreateCalendarServiceAsync(ct);
-            return service != null;
+            var ok = service != null && string.IsNullOrWhiteSpace(LastError);
+            if (!ok && string.IsNullOrWhiteSpace(LastError))
+            {
+                LastError = "Unknown error during connection";
+            }
+            return ok;
         }
-        catch
+        catch (Exception ex)
         {
+            LastError = ex.Message;
+            System.Diagnostics.Debug.WriteLine("[GoogleIntegration] ConnectAsync exception: " + ex);
             return false;
         }
     }
@@ -125,8 +177,10 @@ public class GoogleIntegrationService : IGoogleIntegrationService
             var result = await listRequest.ExecuteAsync(ct);
             return result?.Items != null;
         }
-        catch
+        catch (Exception ex)
         {
+            LastError = ex.Message;
+            System.Diagnostics.Debug.WriteLine("[GoogleIntegration] TestConnectionAsync exception: " + ex);
             return false;
         }
     }
@@ -175,8 +229,10 @@ public class GoogleIntegrationService : IGoogleIntegrationService
 
             return added;
         }
-        catch
+        catch (Exception ex)
         {
+            LastError = ex.Message;
+            System.Diagnostics.Debug.WriteLine("[GoogleIntegration] ScanCalendarAsync exception: " + ex);
             return added;
         }
     }

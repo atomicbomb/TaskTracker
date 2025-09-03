@@ -15,6 +15,7 @@ public interface ITaskManagementService
     Task RefreshTasksFromJiraAsync();
     Task<JiraTask?> AddTaskByNumberAsync(string taskNumber);
     Task<JiraTask> AddManualTaskAsync(int projectId, string summary);
+    Task<JiraTask> EnsureLunchTaskAsync();
     Task RemoveTaskAsync(int taskId);
     Task<JiraTask?> GetTaskByIdAsync(int taskId);
     Task<JiraTask?> GetTaskByNumberAsync(string taskNumber);
@@ -213,6 +214,56 @@ public class TaskManagementService : ITaskManagementService
         _dbContext.JiraTasks.Add(task);
         await _dbContext.SaveChangesAsync();
         return task;
+    }
+
+    /// <summary>
+    /// Ensures a special internal LUNCH task exists (for non-loggable lunch break time) and returns it.
+    /// Creates an INTERNAL project if necessary.
+    /// </summary>
+    public async Task<JiraTask> EnsureLunchTaskAsync()
+    {
+        const string internalProjectCode = "INTERNAL";
+        const string internalProjectName = "Internal Tasks";
+        const string lunchTaskKey = "LUNCH";
+
+        // Look for existing lunch task
+        var existingLunch = await _dbContext.JiraTasks
+            .Include(t => t.Project)
+            .FirstOrDefaultAsync(t => t.JiraTaskNumber == lunchTaskKey);
+        if (existingLunch != null)
+        {
+            if (!existingLunch.IsActive) existingLunch.IsActive = true;
+            await _dbContext.SaveChangesAsync();
+            return existingLunch;
+        }
+
+        // Ensure internal project exists
+        var internalProject = await _dbContext.JiraProjects
+            .FirstOrDefaultAsync(p => p.ProjectCode == internalProjectCode);
+        if (internalProject == null)
+        {
+            internalProject = new JiraProject
+            {
+                ProjectCode = internalProjectCode,
+                ProjectName = internalProjectName,
+                IsSelected = false, // do not include in normal selection
+                LastUpdated = DateTime.UtcNow
+            };
+            _dbContext.JiraProjects.Add(internalProject);
+            await _dbContext.SaveChangesAsync();
+        }
+
+        var lunchTask = new JiraTask
+        {
+            JiraTaskNumber = lunchTaskKey,
+            Summary = "Lunch Break",
+            ProjectId = internalProject.Id,
+            IsActive = true,
+            LastUpdated = DateTime.UtcNow
+        };
+        _dbContext.JiraTasks.Add(lunchTask);
+        await _dbContext.SaveChangesAsync();
+        return lunchTask;
     }
 
     public async Task RemoveTaskAsync(int taskId)

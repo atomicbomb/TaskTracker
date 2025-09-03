@@ -12,6 +12,14 @@
         Foreground="{DynamicResource Foreground}">
     
     <Window.Resources>
+        <Style x:Key="LunchRowStyle" TargetType="DataGridRow" BasedOn="{StaticResource {x:Type DataGridRow}}">
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding Task.JiraTaskNumber}" Value="LUNCH">
+                    <Setter Property="Background" Value="#FFFFE5E5"/>
+                    <Setter Property="ToolTip" Value="Lunch break (not billable)"/>
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
         <!-- Converters -->
         <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
         
@@ -159,23 +167,31 @@
                         </TextBlock>
                     </StackPanel>
                     
-                    <!-- Action Buttons -->
-                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-                        <Button Content="Refresh"
-                               Command="{Binding RefreshCommand}"
-                               Height="30"
-                               Padding="15,0"
-                               Margin="10,0"
-                               Style="{DynamicResource ModernButtonStyle}" />
-                        
-                        <Button Content="Export"
-                               Command="{Binding ExportCommand}"
-                               Height="30"
-                               Padding="15,0"
-                               Background="{DynamicResource SecondaryButtonBackground}"
-                               Foreground="{DynamicResource SecondaryButtonForeground}"
-                               Style="{DynamicResource ModernButtonStyle}" />
-                    </StackPanel>
+            <!-- Action Buttons -->
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="10,0,0,0">
+            <Button Content="Add Entry"
+                Command="{Binding AddEntryCommand}"
+                Height="30"
+                Padding="15,0"
+                Margin="0,0,10,0"
+                Background="{DynamicResource AccentBackground}"
+                Foreground="{DynamicResource AccentForeground}"
+                Visibility="{Binding SelectedView, Converter={StaticResource StringEqualsToVisibilityConverter}, ConverterParameter=Entries}"
+                Style="{DynamicResource ModernButtonStyle}" />
+            <Button Content="Refresh"
+                Command="{Binding RefreshCommand}"
+                Height="30"
+                Padding="15,0"
+                Margin="0,0,10,0"
+                Style="{DynamicResource ModernButtonStyle}" />
+            <Button Content="Export"
+                Command="{Binding ExportCommand}"
+                Height="30"
+                Padding="15,0"
+                Background="{DynamicResource SecondaryButtonBackground}"
+                Foreground="{DynamicResource SecondaryButtonForeground}"
+                Style="{DynamicResource ModernButtonStyle}" />
+            </StackPanel>
                 </StackPanel>
             </Grid>
         </Border>
@@ -353,6 +369,7 @@
                              BorderBrush="{DynamicResource BorderBrush}"
                              RowBackground="{DynamicResource CardBackground}"
                              AlternatingRowBackground="{DynamicResource AlternateRowBackground}"
+                             RowStyle="{StaticResource LunchRowStyle}"
                              CellEditEnding="EntriesGrid_CellEditEnding">
                         
                         <DataGrid.Columns>

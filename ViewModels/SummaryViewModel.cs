@@ -128,9 +128,9 @@ public class SummaryViewModel : ViewModelBase
         _timeTrackingService = timeTrackingService;
         _taskManagementService = taskManagementService;
 
-    PreviousDayCommand = new RelayCommand(PreviousDay);
-    NextDayCommand = new RelayCommand(NextDay);
-    DeleteEntryCommand = new AsyncRelayCommand(async (obj) =>
+        PreviousDayCommand = new RelayCommand(PreviousDay);
+        NextDayCommand = new RelayCommand(NextDay);
+        DeleteEntryCommand = new AsyncRelayCommand(async (obj) =>
         {
             var entry = obj as TimeEntry;
             if (entry != null)
@@ -141,14 +141,15 @@ public class SummaryViewModel : ViewModelBase
             {
                 await DeleteSelectedEntry();
             }
-    }, obj => obj is TimeEntry || SelectedEntry != null);
+        }, obj => obj is TimeEntry || SelectedEntry != null);
         TodayCommand = new RelayCommand(GoToToday);
         PreviousWeekCommand = new RelayCommand(PreviousWeek);
         NextWeekCommand = new RelayCommand(NextWeek);
         ThisWeekCommand = new RelayCommand(GoToThisWeek);
-    RefreshCommand = new AsyncRelayCommand(Refresh, () => !_isLoading);
-    ExportCommand = new AsyncRelayCommand(Export, () => !_isLoading);
-    CloseCommand = new RelayCommand(Close);
+        RefreshCommand = new AsyncRelayCommand(Refresh, () => !_isLoading);
+        ExportCommand = new AsyncRelayCommand(Export, () => !_isLoading);
+        CloseCommand = new RelayCommand(Close);
+        AddEntryCommand = new AsyncRelayCommand(OpenAddEntryDialog, () => !_isLoading);
 
         // Don't load data immediately in constructor to avoid blocking UI
         // Data will be loaded when window is shown or user interactions trigger it
@@ -239,6 +240,7 @@ public class SummaryViewModel : ViewModelBase
     public ICommand ExportCommand { get; }
     public ICommand CloseCommand { get; }
     public ICommand DeleteEntryCommand { get; }
+    public ICommand AddEntryCommand { get; }
     // No explicit command; handled via view event calling ChangeTimeEntryTaskByNumberAsync
 
     // Events
@@ -252,6 +254,7 @@ public class SummaryViewModel : ViewModelBase
             {
                 (DeleteEntryCommand as AsyncRelayCommand)?.RaiseCanExecuteChanged();
             }
+            (AddEntryCommand as AsyncRelayCommand)?.RaiseCanExecuteChanged();
         }
     }
 
@@ -618,13 +621,8 @@ public class SummaryViewModel : ViewModelBase
             IsLoading = true;
             StatusMessage = $"Updating entry #{entry.Id} to {newTaskNumber}...";
 
-            // Find task or add from JIRA
-            var task = await _taskManagementService.GetTaskByNumberAsync(newTaskNumber);
-            if (task == null)
-            {
-                // Try to add from JIRA
-                task = await _taskManagementService.AddTaskByNumberAsync(newTaskNumber);
-            }
+            var task = await _taskManagementService.GetTaskByNumberAsync(newTaskNumber) ??
+                       await _taskManagementService.AddTaskByNumberAsync(newTaskNumber);
 
             if (task == null)
             {
@@ -633,8 +631,6 @@ public class SummaryViewModel : ViewModelBase
             }
 
             await _timeTrackingService.UpdateTimeEntryTaskAsync(entry.Id, task.Id);
-
-            // Fetch the updated entry (detached) for in-place update in the grid
             var updated = await _timeTrackingService.GetTimeEntryByIdAsync(entry.Id);
             StatusMessage = "Time entry updated.";
             return (true, updated);
@@ -642,7 +638,6 @@ public class SummaryViewModel : ViewModelBase
         catch (Exception ex)
         {
             StatusMessage = $"Failed to update entry: {ex.Message}";
-            System.Diagnostics.Debug.WriteLine(ex);
             return (false, null);
         }
         finally
@@ -650,4 +645,126 @@ public class SummaryViewModel : ViewModelBase
             IsLoading = false;
         }
     }
+
+    private async Task OpenAddEntryDialog()
+    {
+        try
+        {
+            var dialogType = Type.GetType("TaskTracker.Views.AddTimeEntryWindow, TaskTracker");
+            if (dialogType == null)
+            {
+                StatusMessage = "Add Entry view not found.";
+                return;
+            }
+            var window = Activator.CreateInstance(dialogType) as System.Windows.Window;
+            if (window == null)
+            {
+                StatusMessage = "Failed to create Add Entry window.";
+                return;
+            }
+            // Try to set owner to the currently focused window (likely the summary window) for centering
+            var owner = System.Windows.Application.Current?.Windows
+                .OfType<System.Windows.Window>()
+                .FirstOrDefault(w => w.IsActive);
+            if (owner != null)
+            {
+                window.Owner = owner;
+                window.WindowStartupLocation = System.Windows.WindowStartupLocation.CenterOwner;
+            }
+            var vm = new AddTimeEntryViewModel(_timeTrackingService, _taskManagementService)
+            {
+                Date = SelectedDate
+            };
+            window.DataContext = vm;
+            var result = window.ShowDialog();
+            if (result == true && vm.CreatedEntry != null)
+            {
+                TimeEntries.Insert(0, vm.CreatedEntry);
+                StatusMessage = "Entry added.";
+            }
+            await Task.CompletedTask; // keep method truly async for interface consistency
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"Failed to add entry: {ex.Message}";
+        }
+    }
 }
+
+public class AddTimeEntryViewModel : ViewModelBase
+{
+        private readonly ITimeTrackingService _timeTrackingService;
+        private readonly ITaskManagementService _taskManagementService;
+
+        public AddTimeEntryViewModel(ITimeTrackingService timeTrackingService, ITaskManagementService taskManagementService)
+        {
+            _timeTrackingService = timeTrackingService;
+            _taskManagementService = taskManagementService;
+            Date = DateTime.Today;
+            StartTimeText = "09:00";
+            EndTimeText = "10:00";
+            SaveCommand = new AsyncRelayCommand(SaveAsync, CanSave);
+            CancelCommand = new RelayCommand(() => CloseRequested?.Invoke(this, false));
+        }
+
+        private DateTime _date;
+        public DateTime Date { get => _date; set { if (SetProperty(ref _date, value)) (SaveCommand as AsyncRelayCommand)?.RaiseCanExecuteChanged(); } }
+        private string _taskNumber = string.Empty;
+        public string TaskNumber { get => _taskNumber; set { if (SetProperty(ref _taskNumber, value)) (SaveCommand as AsyncRelayCommand)?.RaiseCanExecuteChanged(); } }
+        private string _startTimeText = string.Empty;
+        public string StartTimeText { get => _startTimeText; set { if (SetProperty(ref _startTimeText, value)) (SaveCommand as AsyncRelayCommand)?.RaiseCanExecuteChanged(); } }
+        private string _endTimeText = string.Empty;
+        public string EndTimeText { get => _endTimeText; set { if (SetProperty(ref _endTimeText, value)) (SaveCommand as AsyncRelayCommand)?.RaiseCanExecuteChanged(); } }
+
+        public string? Error { get; set; }
+        public JiraTask? ResolvedTask { get; private set; }
+        public TimeEntry? CreatedEntry { get; private set; }
+
+        public ICommand SaveCommand { get; }
+        public ICommand CancelCommand { get; }
+        public event EventHandler<bool>? CloseRequested; // bool = dialog result
+
+        private bool TryParseTimes(out DateTime start, out DateTime end)
+        {
+            start = end = Date;
+            if (!TimeSpan.TryParse(StartTimeText, out var startSpan)) return false;
+            if (!TimeSpan.TryParse(EndTimeText, out var endSpan)) return false;
+            start = Date.Date.Add(startSpan);
+            end = Date.Date.Add(endSpan);
+            return end > start;
+        }
+
+        private bool CanSave()
+        {
+            return !string.IsNullOrWhiteSpace(TaskNumber) && TryParseTimes(out _, out _);
+        }
+
+        private async Task SaveAsync()
+        {
+            try
+            {
+                if (!TryParseTimes(out var start, out var end))
+                {
+                    Error = "Invalid start/end times";
+                    return;
+                }
+                var task = await _taskManagementService.GetTaskByNumberAsync(TaskNumber) ?? await _taskManagementService.AddTaskByNumberAsync(TaskNumber);
+                if (task == null)
+                {
+                    var projects = await _taskManagementService.GetSelectedProjectsAsync();
+                    var project = projects.FirstOrDefault() ?? (await _taskManagementService.GetProjectsAsync()).FirstOrDefault();
+                    if (project == null) throw new InvalidOperationException("No project available for manual task.");
+                    task = await _taskManagementService.AddManualTaskAsync(project.Id, $"Manual entry {TaskNumber}");
+                }
+                ResolvedTask = task;
+                var entry = await _timeTrackingService.CreateManualClosedEntryAsync(task.Id, start, end);
+                CreatedEntry = await _timeTrackingService.GetTimeEntryByIdAsync(entry.Id);
+                CloseRequested?.Invoke(this, true);
+            }
+            catch (Exception ex)
+            {
+                Error = ex.Message;
+                CloseRequested?.Invoke(this, false);
+            }
+        }
+    }

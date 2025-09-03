@@ -25,20 +25,33 @@ namespace TaskTracker.Services
 		event EventHandler? TrackingEnded;
 	}
 
-	public class TimerService : ITimerService
+		public class TimerService : ITimerService
 	{
-		public void EndLunchBreak()
-		{
-			_lunchTimer?.Stop();
-			_lunchTimer = null;
-			_isOnLunchBreak = false;
-			_lunchStartTime = null;
-			LunchBreakEnded?.Invoke(this, EventArgs.Empty);
-			CheckTrackingStatus();
-		}
+			private int? _lunchTimeEntryId;
+
+			public void EndLunchBreak()
+			{
+				_lunchTimer?.Stop();
+				_lunchTimer = null;
+				var endTime = DateTime.Now;
+				if (_isOnLunchBreak && _lunchStartTime.HasValue && _lunchTimeEntryId.HasValue)
+				{
+					_ = Task.Run(async () =>
+					{
+						try { await _timeTrackingService.UpdateTimeEntryEndAsync(_lunchTimeEntryId.Value, endTime); }
+						catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"Error finalizing lunch entry early: {ex.Message}"); }
+					});
+				}
+				_isOnLunchBreak = false;
+				_lunchStartTime = null;
+				_lunchTimeEntryId = null;
+				LunchBreakEnded?.Invoke(this, EventArgs.Empty);
+				CheckTrackingStatus();
+			}
 		private readonly IConfigurationService _configurationService;
 		private readonly ITimeTrackingService _timeTrackingService;
 		private readonly ISystemTrayService _systemTrayService;
+	private readonly ITaskManagementService _taskManagementService;
 
 		private DispatcherTimer? _promptTimer;
 		private DispatcherTimer? _updateTimer;
@@ -75,11 +88,13 @@ namespace TaskTracker.Services
 		public TimerService(
 			IConfigurationService configurationService,
 			ITimeTrackingService timeTrackingService,
-			ISystemTrayService systemTrayService)
+			ISystemTrayService systemTrayService,
+            ITaskManagementService taskManagementService)
 		{
 			_configurationService = configurationService;
 			_timeTrackingService = timeTrackingService;
 			_systemTrayService = systemTrayService;
+            _taskManagementService = taskManagementService;
 		}
 
 		public void Start()
@@ -191,6 +206,21 @@ namespace TaskTracker.Services
 			_lunchDurationMinutes = durationMinutes;
 			_lunchStartTime = DateTime.Now;
 			_isOnLunchBreak = true;
+			_lunchTimeEntryId = null;
+
+			// Create open lunch entry
+			_ = Task.Run(async () =>
+			{
+				try
+				{
+					var lunchTask = await _taskManagementService.EnsureLunchTaskAsync();
+					_lunchTimeEntryId = await _timeTrackingService.CreateOpenTimeEntryAsync(lunchTask.Id, _lunchStartTime.Value);
+				}
+				catch (Exception ex)
+				{
+					System.Diagnostics.Debug.WriteLine($"Error creating lunch time entry: {ex.Message}");
+				}
+			});
 
 			// Update system tray to show lunch status
 			_systemTrayService.UpdateStatus(TrayIconStatus.Lunch);
@@ -248,13 +278,19 @@ namespace TaskTracker.Services
 		{
 			_lunchTimer?.Stop();
 			_lunchTimer = null;
-
+			var endTime = DateTime.Now;
+			if (_lunchStartTime.HasValue && _lunchTimeEntryId.HasValue)
+			{
+				_ = Task.Run(async () =>
+				{
+					try { await _timeTrackingService.UpdateTimeEntryEndAsync(_lunchTimeEntryId.Value, endTime); }
+					catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"Error finalizing lunch entry: {ex.Message}"); }
+				});
+			}
 			_isOnLunchBreak = false;
 			_lunchStartTime = null;
-
+			_lunchTimeEntryId = null;
 			LunchBreakEnded?.Invoke(this, EventArgs.Empty);
-
-			// Update system tray status
 			CheckTrackingStatus();
 		}
 

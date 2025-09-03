@@ -10,6 +10,7 @@ A Windows desktop WPF application for tracking time spent on JIRA tasks with aut
 - Task Management: Add tasks from JIRA or by number; manual tasks supported
 - Project Management: Select which JIRA projects to track (UI filters out DEMO/TEST)
 - Time Summaries: Daily, Weekly, and per-entry (“Time Entries”) views
+- Manual Time Entry Creation: "Add Entry" button (Time Entries view) lets you add a closed entry by specifying Date, Start/End times, and Task Number. If the task number isn’t already tracked it will be fetched from JIRA or created as a manual task.
 - In-grid Editing (Summary):
    - Edit Task # per entry (row-scoped update)
    - Edit Start and End times (HH:mm) with validation
@@ -43,6 +44,8 @@ A Windows desktop WPF application for tracking time spent on JIRA tasks with aut
 ## Current Behaviors and UI Notes
 
 - Time Entries view shows entries for the selected date only; date navigation appears in both Daily and Time Entries views.
+- The "Add Entry" button is only visible in the Time Entries view and opens a centered dialog over the Summary window.
+- Manual Add Entry dialog accepts free-form task numbers; new numbers trigger a JIRA fetch or fall back to creating a manual task.
 - JIRA Projects form excludes projects with codes DEMO and TEST from its list.
 - JIRA Tasks form includes Status (text) and a colored dot by statusCategory (To Do/In Progress/Done).
 - Manual Task Update: available from the main window to set a current task manually.
