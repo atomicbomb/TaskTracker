@@ -160,4 +160,16 @@ public partial class SummaryWindow : Window
         }
         return null;
     }
+
+    private void EntriesGrid_LoadingRow(object sender, DataGridRowEventArgs e)
+    {
+        if (e.Row?.Item is TaskTracker.Models.TimeEntry entry)
+        {
+            if (entry.Task?.JiraTaskNumber == "LUNCH")
+            {
+                var brush = (System.Windows.Media.Brush)new System.Windows.Media.BrushConverter().ConvertFromString("#FFFFE5E5")!;
+                e.Row.Background = brush;
+            }
+        }
+    }
 }

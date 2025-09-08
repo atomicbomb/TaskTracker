@@ -370,7 +370,8 @@
                              RowBackground="{DynamicResource CardBackground}"
                              AlternatingRowBackground="{DynamicResource AlternateRowBackground}"
                              RowStyle="{StaticResource LunchRowStyle}"
-                             CellEditEnding="EntriesGrid_CellEditEnding">
+                             CellEditEnding="EntriesGrid_CellEditEnding"
+                             LoadingRow="EntriesGrid_LoadingRow">
                         
                         <DataGrid.Columns>
                             <DataGridTextColumn Header="Date" 
