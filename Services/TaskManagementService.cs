@@ -106,12 +106,39 @@ public class TaskManagementService : ITaskManagementService
         if (!selectedProjects.Any()) return;
 
         var projectKeys = selectedProjects.Select(p => p.ProjectCode).ToList();
-        var jiraTasks = await _jiraApiService.GetTasksForUserAsync(projectKeys);
+    System.Diagnostics.Debug.WriteLine($"[TaskRefresh] Selected project keys: {string.Join(",", projectKeys)}");
+    var jiraTasks = await _jiraApiService.GetTasksForUserAsync(projectKeys);
+    System.Diagnostics.Debug.WriteLine($"[TaskRefresh] Retrieved {jiraTasks.Count} tasks from JIRA API");
 
         foreach (var jiraTask in jiraTasks)
         {
             var project = selectedProjects.FirstOrDefault(p => p.ProjectCode == jiraTask.Project.ProjectCode);
-            if (project == null) continue;
+            if (project == null)
+            {
+                // Project not currently selected/tracked locally – add or activate it automatically
+                project = await _dbContext.JiraProjects.FirstOrDefaultAsync(p => p.ProjectCode == jiraTask.Project.ProjectCode);
+                if (project == null)
+                {
+                    project = new JiraProject
+                    {
+                        ProjectCode = jiraTask.Project.ProjectCode,
+                        ProjectName = jiraTask.Project.ProjectName,
+                        IsSelected = true,
+                        LastUpdated = DateTime.UtcNow
+                    };
+                    _dbContext.JiraProjects.Add(project);
+                    await _dbContext.SaveChangesAsync();
+                    selectedProjects.Add(project);
+                    System.Diagnostics.Debug.WriteLine($"[TaskRefresh] Added new project {project.ProjectCode} from task list and marked selected");
+                }
+                else if (!project.IsSelected)
+                {
+                    project.IsSelected = true;
+                    await _dbContext.SaveChangesAsync();
+                    selectedProjects.Add(project);
+                    System.Diagnostics.Debug.WriteLine($"[TaskRefresh] Auto-selected existing project {project.ProjectCode} due to assigned task");
+                }
+            }
 
             var existingTask = await _dbContext.JiraTasks
                 .FirstOrDefaultAsync(t => t.JiraTaskNumber == jiraTask.JiraTaskNumber);
@@ -142,7 +169,8 @@ public class TaskManagementService : ITaskManagementService
             }
         }
 
-        await _dbContext.SaveChangesAsync();
+    await _dbContext.SaveChangesAsync();
+    System.Diagnostics.Debug.WriteLine($"[TaskRefresh] Local task table now has {await _dbContext.JiraTasks.CountAsync()} total tasks (active+inactive)");
     }
 
     public async Task<JiraTask?> AddTaskByNumberAsync(string taskNumber)

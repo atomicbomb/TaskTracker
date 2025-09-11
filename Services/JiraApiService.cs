@@ -110,7 +110,9 @@ public class JiraApiService : IJiraApiService, IDisposable
             var jql = $"assignee = currentUser() AND project in ({projectFilter}) AND statusCategory != Done ORDER BY key ASC";
             var encodedJql = Uri.EscapeDataString(jql);
             
-            var response = await _httpClient.GetAsync($"/rest/api/2/search?jql={encodedJql}&fields=summary,status,assignee,project");
+            // NOTE: Without specifying maxResults, JIRA defaults to 50 which can cause newer tasks to be excluded.
+            // Increase to 1000 to capture a broader set of assigned tasks.
+            var response = await _httpClient.GetAsync($"/rest/api/2/search?jql={encodedJql}&fields=summary,status,assignee,project&maxResults=1000");
             if (!response.IsSuccessStatusCode) return new List<JiraTask>();
 
             var content = await response.Content.ReadAsStringAsync();
