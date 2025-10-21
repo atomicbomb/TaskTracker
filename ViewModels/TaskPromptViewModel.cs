@@ -199,7 +199,7 @@ public class TaskPromptViewModel : ViewModelBase
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"Error loading tasks for project {SelectedProject.ProjectCode}: {ex.Message}");
+            LogHelper.Error($"Error loading tasks for project {SelectedProject.ProjectCode}: {ex.Message}", nameof(TaskPromptViewModel));
             Tasks.Clear();
         }
         finally
@@ -219,12 +219,12 @@ public class TaskPromptViewModel : ViewModelBase
     {
         try
         {
-            System.Diagnostics.Debug.WriteLine("TaskPromptViewModel.Confirm() called");
+            LogHelper.Debug("Confirm() called", nameof(TaskPromptViewModel));
             StopTimeoutTimer();
 
             if (IsLunchMode)
             {
-                System.Diagnostics.Debug.WriteLine($"Starting lunch break for {LunchDuration} minutes");
+                LogHelper.Info($"Starting lunch break for {LunchDuration} minutes", nameof(TaskPromptViewModel));
                 LunchStarted?.Invoke(this, new LunchStartedEventArgs(LunchDuration));
             }
             else if (IsManualMode)
@@ -239,24 +239,23 @@ public class TaskPromptViewModel : ViewModelBase
             }
             else if (SelectedTask != null)
             {
-                System.Diagnostics.Debug.WriteLine($"Switching to task: {SelectedTask.Summary} (ID: {SelectedTask.Id})");
+                LogHelper.Info($"Switching to task: {SelectedTask.Summary} (ID: {SelectedTask.Id})", nameof(TaskPromptViewModel));
                 
                 // Switch to the selected task
                 await _timeTrackingService.SwitchTaskAsync(SelectedTask.Id);
-                System.Diagnostics.Debug.WriteLine("Task switch completed successfully");
+                LogHelper.Debug("Task switch completed successfully", nameof(TaskPromptViewModel));
                 
                 TaskSelected?.Invoke(this, new TaskSelectedEventArgs(SelectedTask));
-                System.Diagnostics.Debug.WriteLine("TaskSelected event fired");
+                LogHelper.Debug("TaskSelected event fired", nameof(TaskPromptViewModel));
             }
             else
             {
-                System.Diagnostics.Debug.WriteLine("No task selected in Confirm()");
+                LogHelper.Warn("No task selected in Confirm()", nameof(TaskPromptViewModel));
             }
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"Error in TaskPromptViewModel.Confirm(): {ex.Message}");
-            System.Diagnostics.Debug.WriteLine($"Stack trace: {ex.StackTrace}");
+            LogHelper.Error($"Error in Confirm(): {ex.Message}", nameof(TaskPromptViewModel), ex.StackTrace);
             System.Windows.MessageBox.Show(
                 $"Error confirming selection:\n\n{ex.Message}\n\nStack trace:\n{ex.StackTrace}",
                 "Error",

@@ -1,0 +1,69 @@
+<Window x:Class="TaskTracker.Views.LogViewerWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    Title="Log Viewer" Height="720" Width="1280" MinWidth="900" MinHeight="500"
+        WindowStartupLocation="CenterOwner"
+        Background="{StaticResource BackgroundBrush}">
+    <Window.Resources>
+        <!-- Local converter instance since this is a standalone window -->
+        <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
+    </Window.Resources>
+    <Grid Margin="10">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+    <StackPanel Orientation="Horizontal" Margin="0,0,0,8" VerticalAlignment="Top">
+            <StackPanel>
+                <TextBlock Text="From" FontSize="11"/>
+                <DatePicker SelectedDate="{Binding FromDate, Mode=TwoWay}" Width="130"/>
+            </StackPanel>
+            <StackPanel>
+                <TextBlock Text="To" FontSize="11"/>
+                <DatePicker SelectedDate="{Binding ToDate, Mode=TwoWay}" Width="130"/>
+            </StackPanel>
+            <StackPanel>
+                <TextBlock Text="Level" FontSize="11"/>
+                <ComboBox Width="110" ItemsSource="{Binding Levels}" SelectedItem="{Binding SelectedLevel, Mode=TwoWay}"/>
+            </StackPanel>
+            <StackPanel>
+                <TextBlock Text="Source" FontSize="11"/>
+                <ComboBox Width="150" ItemsSource="{Binding Sources}" SelectedItem="{Binding SelectedSource, Mode=TwoWay}"/>
+            </StackPanel>
+            <StackPanel>
+                <TextBlock Text="Text" FontSize="11"/>
+                <TextBox Width="160" Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"/>
+            </StackPanel>
+            <StackPanel>
+                <TextBlock Text="Max" FontSize="11"/>
+                <TextBox Width="60" Text="{Binding MaxRows, UpdateSourceTrigger=PropertyChanged}"/>
+            </StackPanel>
+            <Button Content="Refresh" Command="{Binding RefreshCommand}" Width="80"/>
+            <Button Content="Reset" Command="{Binding ResetCommand}" Width="80"/>
+            <Button Content="Export" Command="{Binding ExportCommand}" Width="80"/>
+            <Button Content="Close" Command="{Binding CloseCommand}" Width="80"/>
+        </StackPanel>
+        <DataGrid Grid.Row="1" ItemsSource="{Binding Logs}" AutoGenerateColumns="False" IsReadOnly="True"
+                  CanUserAddRows="False" CanUserDeleteRows="False" HeadersVisibility="Column" 
+                  RowHeaderWidth="0" Margin="0,0,0,8" 
+                  Background="{StaticResource CardBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
+            <DataGrid.Columns>
+                <DataGridTextColumn Header="Time (Local)" Binding="{Binding UtcTimestamp, ConverterCulture=en-US, StringFormat=yyyy-MM-dd HH:mm:ss}" Width="150"/>
+                <DataGridTextColumn Header="Level" Binding="{Binding Level}" Width="70"/>
+                <DataGridTextColumn Header="Source" Binding="{Binding Source}" Width="120"/>
+                <DataGridTextColumn Header="Message" Binding="{Binding Message}" Width="300"/>
+                <DataGridTextColumn Header="Details" Binding="{Binding Details}" Width="*"/>
+                <DataGridTextColumn Header="Thread" Binding="{Binding ThreadId}" Width="60"/>
+            </DataGrid.Columns>
+        </DataGrid>
+        <StatusBar Grid.Row="2" Height="24">
+            <StatusBarItem>
+                <TextBlock Text="{Binding Logs.Count, StringFormat=Records: {0}}"/>
+            </StatusBarItem>
+            <StatusBarItem>
+                <TextBlock Text="Loading..." Visibility="{Binding IsLoading, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+            </StatusBarItem>
+        </StatusBar>
+    </Grid>
+</Window>

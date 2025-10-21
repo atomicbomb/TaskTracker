@@ -106,9 +106,9 @@ public class TaskManagementService : ITaskManagementService
         if (!selectedProjects.Any()) return;
 
         var projectKeys = selectedProjects.Select(p => p.ProjectCode).ToList();
-    System.Diagnostics.Debug.WriteLine($"[TaskRefresh] Selected project keys: {string.Join(",", projectKeys)}");
+    LogHelper.Debug($"[TaskRefresh] Selected project keys: {string.Join(",", projectKeys)}", nameof(TaskManagementService));
     var jiraTasks = await _jiraApiService.GetTasksForUserAsync(projectKeys);
-    System.Diagnostics.Debug.WriteLine($"[TaskRefresh] Retrieved {jiraTasks.Count} tasks from JIRA API");
+    LogHelper.Debug($"[TaskRefresh] Retrieved {jiraTasks.Count} tasks from JIRA API", nameof(TaskManagementService));
 
         foreach (var jiraTask in jiraTasks)
         {
@@ -129,14 +129,14 @@ public class TaskManagementService : ITaskManagementService
                     _dbContext.JiraProjects.Add(project);
                     await _dbContext.SaveChangesAsync();
                     selectedProjects.Add(project);
-                    System.Diagnostics.Debug.WriteLine($"[TaskRefresh] Added new project {project.ProjectCode} from task list and marked selected");
+                    LogHelper.Info($"Added new project {project.ProjectCode} from task list and marked selected", nameof(TaskManagementService));
                 }
                 else if (!project.IsSelected)
                 {
                     project.IsSelected = true;
                     await _dbContext.SaveChangesAsync();
                     selectedProjects.Add(project);
-                    System.Diagnostics.Debug.WriteLine($"[TaskRefresh] Auto-selected existing project {project.ProjectCode} due to assigned task");
+                    LogHelper.Info($"Auto-selected existing project {project.ProjectCode} due to assigned task", nameof(TaskManagementService));
                 }
             }
 
@@ -170,7 +170,7 @@ public class TaskManagementService : ITaskManagementService
         }
 
     await _dbContext.SaveChangesAsync();
-    System.Diagnostics.Debug.WriteLine($"[TaskRefresh] Local task table now has {await _dbContext.JiraTasks.CountAsync()} total tasks (active+inactive)");
+    LogHelper.Debug($"Local task table now has {await _dbContext.JiraTasks.CountAsync()} total tasks (active+inactive)", nameof(TaskManagementService));
     }
 
     public async Task<JiraTask?> AddTaskByNumberAsync(string taskNumber)

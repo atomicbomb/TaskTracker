@@ -268,7 +268,7 @@ public class SummaryViewModel : ViewModelBase
             IsLoading = true;
             StatusMessage = "Loading summary data...";
             
-            System.Diagnostics.Debug.WriteLine($"Loading data for view: {SelectedView}, date: {SelectedDate}");
+            LogHelper.Debug($"Loading data for view: {SelectedView}, date: {SelectedDate}", nameof(SummaryViewModel));
 
             switch (SelectedView)
             {
@@ -284,12 +284,12 @@ public class SummaryViewModel : ViewModelBase
             }
 
             StatusMessage = "Data loaded successfully";
-            System.Diagnostics.Debug.WriteLine("Data loading completed");
+            LogHelper.Debug("Data loading completed", nameof(SummaryViewModel));
         }
         catch (Exception ex)
         {
             StatusMessage = $"Error loading data: {ex.Message}";
-            System.Diagnostics.Debug.WriteLine($"Error loading data: {ex.Message}\nStack trace: {ex.StackTrace}");
+            LogHelper.Error($"Error loading data: {ex.Message}", nameof(SummaryViewModel), ex.StackTrace);
         }
         finally
         {
@@ -368,23 +368,23 @@ public class SummaryViewModel : ViewModelBase
     private async Task LoadDailySummary()
     {
         var entries = await _timeTrackingService.GetTimeEntriesAsync(SelectedDate, SelectedDate.AddDays(1));
-        System.Diagnostics.Debug.WriteLine($"Found {entries.Count} time entries for date {SelectedDate}");
+    LogHelper.Debug($"Found {entries.Count} time entries for date {SelectedDate}", nameof(SummaryViewModel));
         
         // Include active entry if it started today
         var activeEntry = await _timeTrackingService.GetActiveTimeEntryAsync();
         if (activeEntry != null)
         {
-            System.Diagnostics.Debug.WriteLine($"Found active entry: Task {activeEntry.TaskId}, started {activeEntry.StartTime}");
+            LogHelper.Debug($"Found active entry: Task {activeEntry.TaskId}, started {activeEntry.StartTime}", nameof(SummaryViewModel));
             if (activeEntry.StartTime.Date == SelectedDate.Date &&
                 !entries.Any(e => e.Id == activeEntry.Id))
             {
                 entries.Add(activeEntry);
-                System.Diagnostics.Debug.WriteLine("Added active entry to today's entries");
+                LogHelper.Debug("Added active entry to today's entries", nameof(SummaryViewModel));
             }
         }
         else
         {
-            System.Diagnostics.Debug.WriteLine("No active entry found");
+            LogHelper.Debug("No active entry found", nameof(SummaryViewModel));
         }
         
         var dailySummary = new DailySummaryViewModel
@@ -407,13 +407,13 @@ public class SummaryViewModel : ViewModelBase
             .ToList();
 
         dailySummary.TaskSummaries = taskGroups;
-        System.Diagnostics.Debug.WriteLine($"Created daily summary with {taskGroups.Count} task groups, total time: {dailySummary.TotalTime}");
+    LogHelper.Debug($"Created daily summary with {taskGroups.Count} task groups, total time: {dailySummary.TotalTime}", nameof(SummaryViewModel));
         
         // Ensure UI update happens on UI thread
         await System.Windows.Application.Current.Dispatcher.InvokeAsync(() =>
         {
             DailySummary = dailySummary;
-            System.Diagnostics.Debug.WriteLine("Daily summary set on UI thread");
+            LogHelper.Debug("Daily summary set on UI thread", nameof(SummaryViewModel));
         });
     }
 

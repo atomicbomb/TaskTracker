@@ -128,11 +128,16 @@
                         Margin="5"/>
                 
                 <!-- Row 4 -->
-                <Button Grid.Row="3" Grid.Column="0" Grid.ColumnSpan="2"
-                        Content="Exit Application" 
-                        Style="{StaticResource SecondaryButtonStyle}"
-                        Command="{Binding ExitApplicationCommand}"
-                        Margin="5"/>
+        <Button Grid.Row="3" Grid.Column="0"
+            Content="View Logs" 
+            Style="{StaticResource SecondaryButtonStyle}"
+            Command="{Binding ShowLogsCommand}"
+            Margin="5"/>
+        <Button Grid.Row="3" Grid.Column="1"
+            Content="Exit Application" 
+            Style="{StaticResource SecondaryButtonStyle}"
+            Command="{Binding ExitApplicationCommand}"
+            Margin="5"/>
             </Grid>
         </Grid>
         

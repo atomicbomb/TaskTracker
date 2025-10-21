@@ -12,6 +12,7 @@ public class TaskTrackerDbContext : DbContext
     public DbSet<JiraProject> JiraProjects { get; set; }
     public DbSet<JiraTask> JiraTasks { get; set; }
     public DbSet<TimeEntry> TimeEntries { get; set; }
+    public DbSet<LogEntry> LogEntries { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -50,6 +51,16 @@ public class TaskTrackerDbContext : DbContext
                   .WithMany(t => t.TimeEntries)
                   .HasForeignKey(e => e.TaskId)
                   .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // Configure LogEntry
+        modelBuilder.Entity<LogEntry>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.HasIndex(e => e.UtcTimestamp);
+            entity.HasIndex(e => e.Level);
+            entity.HasIndex(e => e.Source);
+            entity.Property(e => e.Message).IsRequired();
         });
     }
 }

@@ -39,7 +39,7 @@ namespace TaskTracker.Services
 					_ = Task.Run(async () =>
 					{
 						try { await _timeTrackingService.UpdateTimeEntryEndAsync(_lunchTimeEntryId.Value, endTime); }
-						catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"Error finalizing lunch entry early: {ex.Message}"); }
+						catch (Exception ex) { LogHelper.Error($"Error finalizing lunch entry early: {ex.Message}", nameof(TimerService)); }
 					});
 				}
 				_isOnLunchBreak = false;
@@ -99,15 +99,15 @@ namespace TaskTracker.Services
 
 		public void Start()
 		{
-			System.Diagnostics.Debug.WriteLine("=== TimerService.Start() called ===");
+			LogHelper.Debug("Start() called", nameof(TimerService));
 
 			Stop(); // Stop any existing timers
 
 			var settings = _configurationService.AppSettings;
 
-			System.Diagnostics.Debug.WriteLine($"Prompt interval: {settings.PromptIntervalMinutes} minutes");
-			System.Diagnostics.Debug.WriteLine($"Update interval: {settings.UpdateIntervalMinutes} minutes");
-			System.Diagnostics.Debug.WriteLine($"Calendar scan enabled: {settings.Google.Enabled}, interval: {settings.Google.ScanIntervalMinutes} minutes");
+			LogHelper.Debug($"Prompt interval: {settings.PromptIntervalMinutes} minutes", nameof(TimerService));
+			LogHelper.Debug($"Update interval: {settings.UpdateIntervalMinutes} minutes", nameof(TimerService));
+			LogHelper.Debug($"Calendar scan enabled: {settings.Google.Enabled}, interval: {settings.Google.ScanIntervalMinutes} minutes", nameof(TimerService));
 
 			// Task prompt timer
 			_promptTimer = new DispatcherTimer
@@ -117,7 +117,7 @@ namespace TaskTracker.Services
 			_promptTimer.Tick += OnPromptTimerTick;
 			_promptTimer.Start();
 
-			System.Diagnostics.Debug.WriteLine("Prompt timer started");
+			LogHelper.Debug("Prompt timer started", nameof(TimerService));
 
 			// Data update timer
 			_updateTimer = new DispatcherTimer
@@ -149,7 +149,7 @@ namespace TaskTracker.Services
 			// Check if we should start tracking immediately
 			CheckTrackingStatus();
 
-			System.Diagnostics.Debug.WriteLine("=== TimerService.Start() completed ===");
+			LogHelper.Debug("Start() completed", nameof(TimerService));
 		}
 
 		public void Stop()
@@ -218,7 +218,7 @@ namespace TaskTracker.Services
 				}
 				catch (Exception ex)
 				{
-					System.Diagnostics.Debug.WriteLine($"Error creating lunch time entry: {ex.Message}");
+					LogHelper.Error($"Error creating lunch time entry: {ex.Message}", nameof(TimerService));
 				}
 			});
 
@@ -239,16 +239,16 @@ namespace TaskTracker.Services
 
 		private void OnPromptTimerTick(object? sender, EventArgs e)
 		{
-			System.Diagnostics.Debug.WriteLine("=== OnPromptTimerTick called ===");
+			LogHelper.Debug("OnPromptTimerTick", nameof(TimerService));
 
 			if (ShouldPromptUser())
 			{
-				System.Diagnostics.Debug.WriteLine("Firing TaskPromptRequested event");
+				LogHelper.Debug("Firing TaskPromptRequested event", nameof(TimerService));
 				TaskPromptRequested?.Invoke(this, EventArgs.Empty);
 			}
 			else
 			{
-				System.Diagnostics.Debug.WriteLine("Not firing TaskPromptRequested event - conditions not met");
+				LogHelper.Debug("Not firing TaskPromptRequested event - conditions not met", nameof(TimerService));
 			}
 		}
 
@@ -284,7 +284,7 @@ namespace TaskTracker.Services
 				_ = Task.Run(async () =>
 				{
 					try { await _timeTrackingService.UpdateTimeEntryEndAsync(_lunchTimeEntryId.Value, endTime); }
-					catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"Error finalizing lunch entry: {ex.Message}"); }
+					catch (Exception ex) { LogHelper.Error($"Error finalizing lunch entry: {ex.Message}", nameof(TimerService)); }
 				});
 			}
 			_isOnLunchBreak = false;
@@ -296,43 +296,31 @@ namespace TaskTracker.Services
 
 		private bool ShouldPromptUser()
 		{
-			// Debug output
-			System.Diagnostics.Debug.WriteLine($"=== ShouldPromptUser Check ===");
-			System.Diagnostics.Debug.WriteLine($"Is on lunch break: {_isOnLunchBreak}");
-
-			// Don't prompt if on lunch break
+			LogHelper.Debug("ShouldPromptUser Check", nameof(TimerService));
+			LogHelper.Debug($"Is on lunch break: {_isOnLunchBreak}", nameof(TimerService));
 			if (_isOnLunchBreak)
 			{
-				System.Diagnostics.Debug.WriteLine("Not prompting: On lunch break");
+				LogHelper.Debug("Not prompting: On lunch break", nameof(TimerService));
 				return false;
 			}
-
-			// Check tracking hours
 			var isWithinHours = IsWithinTrackingHours();
-			System.Diagnostics.Debug.WriteLine($"Is within tracking hours: {isWithinHours}");
-
-			// Don't prompt if outside tracking hours
+			LogHelper.Debug($"Is within tracking hours: {isWithinHours}", nameof(TimerService));
 			if (!isWithinHours)
 			{
-				System.Diagnostics.Debug.WriteLine("Not prompting: Outside tracking hours");
+				LogHelper.Debug("Not prompting: Outside tracking hours", nameof(TimerService));
 				return false;
 			}
-
-			// Check JIRA configuration
 			var jiraConfigured = _configurationService.JiraSettings.IsConfigured;
-			System.Diagnostics.Debug.WriteLine($"JIRA configured: {jiraConfigured}");
-			System.Diagnostics.Debug.WriteLine($"JIRA Server: '{_configurationService.JiraSettings.ServerUrl}'");
-			System.Diagnostics.Debug.WriteLine($"JIRA Email: '{_configurationService.JiraSettings.Email}'");
-			System.Diagnostics.Debug.WriteLine($"JIRA Token: '{(_configurationService.JiraSettings.ApiToken.Length > 0 ? "[SET]" : "[EMPTY]")}'");
-
-			// Don't prompt if JIRA is not configured
+			LogHelper.Debug($"JIRA configured: {jiraConfigured}", nameof(TimerService));
+			LogHelper.Debug($"JIRA Server: '{_configurationService.JiraSettings.ServerUrl}'", nameof(TimerService));
+			LogHelper.Debug($"JIRA Email: '{_configurationService.JiraSettings.Email}'", nameof(TimerService));
+			LogHelper.Debug($"JIRA Token: '{(_configurationService.JiraSettings.ApiToken.Length > 0 ? "[SET]" : "[EMPTY]")}'", nameof(TimerService));
 			if (!jiraConfigured)
 			{
-				System.Diagnostics.Debug.WriteLine("Not prompting: JIRA not configured");
+				LogHelper.Debug("Not prompting: JIRA not configured", nameof(TimerService));
 				return false;
 			}
-
-			System.Diagnostics.Debug.WriteLine("Should prompt: All conditions met");
+			LogHelper.Debug("Should prompt: All conditions met", nameof(TimerService));
 			return true;
 		}
 
@@ -341,14 +329,11 @@ namespace TaskTracker.Services
 			var now = TimeOnly.FromDateTime(DateTime.Now);
 			var startTime = _configurationService.AppSettings.TrackingStartTime;
 			var endTime = _configurationService.AppSettings.TrackingEndTime;
-
-			System.Diagnostics.Debug.WriteLine($"Current time: {now}");
-			System.Diagnostics.Debug.WriteLine($"Tracking start: {startTime}");
-			System.Diagnostics.Debug.WriteLine($"Tracking end: {endTime}");
-
+			LogHelper.Debug($"Current time: {now}", nameof(TimerService));
+			LogHelper.Debug($"Tracking start: {startTime}", nameof(TimerService));
+			LogHelper.Debug($"Tracking end: {endTime}", nameof(TimerService));
 			var result = _timeTrackingService.IsWithinTrackingHours(now, startTime, endTime);
-			System.Diagnostics.Debug.WriteLine($"IsWithinTrackingHours result: {result}");
-
+			LogHelper.Debug($"IsWithinTrackingHours result: {result}", nameof(TimerService));
 			return result;
 		}
 
@@ -397,7 +382,7 @@ namespace TaskTracker.Services
 				}
 				catch (Exception ex)
 				{
-					System.Diagnostics.Debug.WriteLine($"Error stopping tracking at end of day: {ex.Message}");
+					LogHelper.Error($"Error stopping tracking at end of day: {ex.Message}", nameof(TimerService));
 				}
 			}
 		}

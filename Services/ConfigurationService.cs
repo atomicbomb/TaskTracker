@@ -33,41 +33,41 @@ public class ConfigurationService : IConfigurationService
 
     public async Task LoadSettingsAsync()
     {
-        System.Diagnostics.Debug.WriteLine("=== ConfigurationService.LoadSettingsAsync() ===");
-        System.Diagnostics.Debug.WriteLine($"Config file path: {_configFilePath}");
+    LogHelper.Debug("LoadSettingsAsync invoked", nameof(ConfigurationService));
+    LogHelper.Debug($"Config file path: {_configFilePath}", nameof(ConfigurationService));
         
         try
         {
             if (File.Exists(_configFilePath))
             {
-                System.Diagnostics.Debug.WriteLine("Config file exists, loading...");
+                LogHelper.Debug("Config file exists, loading...", nameof(ConfigurationService));
                 var json = await File.ReadAllTextAsync(_configFilePath);
                 var data = JsonConvert.DeserializeObject<ConfigurationData>(json);
                 if (data != null)
                 {
                     _configData = data;
-                    System.Diagnostics.Debug.WriteLine("Configuration loaded successfully");
-                    System.Diagnostics.Debug.WriteLine($"JIRA Server: '{_configData.JiraSettings.ServerUrl}'");
-                    System.Diagnostics.Debug.WriteLine($"JIRA Email: '{_configData.JiraSettings.Email}'");
-                    System.Diagnostics.Debug.WriteLine($"JIRA Token Length: {_configData.JiraSettings.ApiToken.Length}");
-                    System.Diagnostics.Debug.WriteLine($"Tracking Start: {_configData.AppSettings.TrackingStartTime}");
-                    System.Diagnostics.Debug.WriteLine($"Tracking End: {_configData.AppSettings.TrackingEndTime}");
-                    System.Diagnostics.Debug.WriteLine($"JIRA IsConfigured: {_configData.JiraSettings.IsConfigured}");
+                    LogHelper.Info("Configuration loaded successfully", nameof(ConfigurationService));
+                    LogHelper.Debug($"JIRA Server: '{_configData.JiraSettings.ServerUrl}'", nameof(ConfigurationService));
+                    LogHelper.Debug($"JIRA Email: '{_configData.JiraSettings.Email}'", nameof(ConfigurationService));
+                    LogHelper.Debug($"JIRA Token Length: {_configData.JiraSettings.ApiToken.Length}", nameof(ConfigurationService));
+                    LogHelper.Debug($"Tracking Start: {_configData.AppSettings.TrackingStartTime}", nameof(ConfigurationService));
+                    LogHelper.Debug($"Tracking End: {_configData.AppSettings.TrackingEndTime}", nameof(ConfigurationService));
+                    LogHelper.Debug($"JIRA IsConfigured: {_configData.JiraSettings.IsConfigured}", nameof(ConfigurationService));
                 }
                 else
                 {
-                    System.Diagnostics.Debug.WriteLine("Config data deserialization returned null");
+                    LogHelper.Warn("Config data deserialization returned null", nameof(ConfigurationService));
                 }
             }
             else
             {
-                System.Diagnostics.Debug.WriteLine("Config file does not exist, using defaults");
+                LogHelper.Info("Config file does not exist, using defaults", nameof(ConfigurationService));
             }
         }
         catch (Exception ex)
         {
             // Log error and use default settings
-            System.Diagnostics.Debug.WriteLine($"Error loading settings: {ex.Message}");
+            LogHelper.Error($"Error loading settings: {ex.Message}", nameof(ConfigurationService));
         }
     }
 
@@ -81,7 +81,7 @@ public class ConfigurationService : IConfigurationService
         catch (Exception ex)
         {
             // Log error
-            System.Diagnostics.Debug.WriteLine($"Error saving settings: {ex.Message}");
+            LogHelper.Error($"Error saving settings: {ex.Message}", nameof(ConfigurationService));
         }
     }
 

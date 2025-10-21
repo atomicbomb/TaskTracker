@@ -29,9 +29,12 @@ public partial class App : System.Windows.Application
             var services = new ServiceCollection();
             ConfigureServices(services);
             _serviceProvider = services.BuildServiceProvider();
-
-            // Initialize database
+            // Initialize database (creates any missing tables)
             await InitializeDatabaseAsync();
+
+            // Initialize global logger helper AFTER database is ready so logging works immediately
+            try { LogHelper.Logger = _serviceProvider.GetRequiredService<ILoggingService>(); } catch { }
+            LogHelper.Info("Database initialized and logger ready", nameof(App));
 
             // Load configuration
             var configService = _serviceProvider.GetRequiredService<IConfigurationService>();
@@ -83,6 +86,7 @@ public partial class App : System.Windows.Application
     services.AddSingleton<IGoogleIntegrationService, GoogleIntegrationService>();
         services.AddScoped<ITimeTrackingService, TimeTrackingService>();
         services.AddScoped<ITaskManagementService, TaskManagementService>();
+    services.AddScoped<ILoggingService, LoggingService>();
         
         // HTTP Client and JIRA Service
         services.AddHttpClient();
@@ -101,6 +105,7 @@ public partial class App : System.Windows.Application
         services.AddTransient<JiraTasksViewModel>();
         services.AddTransient<SummaryViewModel>();
         services.AddTransient<TaskPromptViewModel>();
+    services.AddTransient<LogViewerViewModel>();
     }
 
     private async Task InitializeDatabaseAsync()
@@ -125,7 +130,7 @@ public partial class App : System.Windows.Application
         catch (Exception ex)
         {
             // Log error and continue with default theme
-            System.Diagnostics.Debug.WriteLine($"Error loading theme: {ex.Message}");
+            LogHelper.Error($"Error loading theme: {ex.Message}", nameof(App));
         }
     }
 
@@ -145,7 +150,7 @@ public partial class App : System.Windows.Application
         catch (Exception ex)
         {
             // Fallback if service method fails
-            System.Diagnostics.Debug.WriteLine($"Error in OnExitRequested: {ex.Message}");
+            LogHelper.Error($"Error in OnExitRequested: {ex.Message}", nameof(App));
             Shutdown();
         }
     }

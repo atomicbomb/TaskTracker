@@ -38,7 +38,8 @@ namespace TaskTracker.ViewModels
 			ShowJiraTasksCommand = new RelayCommand(ShowJiraTasks);
 			MinimizeToTrayCommand = new RelayCommand(MinimizeToTray);
 			ExitApplicationCommand = new AsyncRelayCommand(ExitApplication);
-			TestTaskPromptCommand = new RelayCommand(TestTaskPrompt);
+		TestTaskPromptCommand = new RelayCommand(TestTaskPrompt);
+		ShowLogsCommand = new RelayCommand(ShowLogs);
 			CancelLunchCommand = new RelayCommand(CancelLunch, () => _timerService.IsOnLunchBreak);
 			// Listen for lunch break changes
 			var lunchTimer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
@@ -111,6 +112,7 @@ namespace TaskTracker.ViewModels
 		public ICommand MinimizeToTrayCommand { get; }
 		public ICommand ExitApplicationCommand { get; }
 		public ICommand TestTaskPromptCommand { get; }
+		public ICommand ShowLogsCommand { get; }
 
 		public async Task InitializeAsync()
 		{
@@ -211,7 +213,7 @@ namespace TaskTracker.ViewModels
 
 		private void TestTaskPrompt()
 		{
-			System.Diagnostics.Debug.WriteLine("=== Manual task prompt test triggered ===");
+			LogHelper.Info("Manual task prompt test triggered", nameof(MainViewModel));
 			StatusText = "Testing task prompt...";
 			try
 			{
@@ -221,9 +223,15 @@ namespace TaskTracker.ViewModels
 			catch (Exception ex)
 			{
 				StatusText = $"Task prompt test failed: {ex.Message}";
-				System.Diagnostics.Debug.WriteLine($"Task prompt test error: {ex.Message}");
+				LogHelper.Error($"Task prompt test error: {ex.Message}", nameof(MainViewModel));
 
 			}
+		}
+
+		private void ShowLogs()
+		{
+			_applicationService.ShowLogViewer();
+			StatusText = "Log viewer opened";
 		}
 	}
 }

@@ -52,7 +52,7 @@ public class TimeTrackingService : ITimeTrackingService
         try
         {
             using var db = _dbContextFactory.CreateDbContext();
-            System.Diagnostics.Debug.WriteLine($"StartTrackingAsync called with TaskId: {taskId}");
+            LogHelper.Debug($"StartTrackingAsync called with TaskId: {taskId}", nameof(TimeTrackingService));
             // Check if the task exists in the database
             var taskExists = await db.JiraTasks.AnyAsync(t => t.Id == taskId);
             if (!taskExists)
@@ -67,15 +67,14 @@ public class TimeTrackingService : ITimeTrackingService
                 StartTime = DateTime.Now,
                 Date = DateOnly.FromDateTime(DateTime.Now)
             };
-            System.Diagnostics.Debug.WriteLine($"Adding time entry for task {taskId} at {timeEntry.StartTime}");
+            LogHelper.Debug($"Adding time entry for task {taskId} at {timeEntry.StartTime}", nameof(TimeTrackingService));
             db.TimeEntries.Add(timeEntry);
             await db.SaveChangesAsync();
-            System.Diagnostics.Debug.WriteLine("Time entry saved successfully");
+            LogHelper.Debug("Time entry saved successfully", nameof(TimeTrackingService));
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"Error in StartTrackingAsync: {ex.Message}");
-            System.Diagnostics.Debug.WriteLine($"Stack trace: {ex.StackTrace}");
+            LogHelper.Error($"Error in StartTrackingAsync: {ex.Message}", nameof(TimeTrackingService), ex.StackTrace);
             throw; // Re-throw to propagate the error
         }
     }
@@ -85,7 +84,7 @@ public class TimeTrackingService : ITimeTrackingService
         try
         {
             using var db = _dbContextFactory.CreateDbContext();
-            System.Diagnostics.Debug.WriteLine("StopTrackingAsync called");
+            LogHelper.Debug("StopTrackingAsync called", nameof(TimeTrackingService));
             // Fetch a tracked active entry (do NOT use AsNoTracking here)
             var activeEntry = await db.TimeEntries
                 .Where(te => te.EndTime == null)
@@ -93,19 +92,19 @@ public class TimeTrackingService : ITimeTrackingService
                 .FirstOrDefaultAsync();
             if (activeEntry != null)
             {
-                System.Diagnostics.Debug.WriteLine($"Stopping active time entry for task {activeEntry.TaskId}");
+                LogHelper.Debug($"Stopping active time entry for task {activeEntry.TaskId}", nameof(TimeTrackingService));
                 activeEntry.EndTime = DateTime.Now;
                 await db.SaveChangesAsync();
-                System.Diagnostics.Debug.WriteLine("Active time entry stopped successfully");
+                LogHelper.Debug("Active time entry stopped successfully", nameof(TimeTrackingService));
             }
             else
             {
-                System.Diagnostics.Debug.WriteLine("No active time entry to stop");
+                LogHelper.Debug("No active time entry to stop", nameof(TimeTrackingService));
             }
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"Error in StopTrackingAsync: {ex.Message}");
+            LogHelper.Error($"Error in StopTrackingAsync: {ex.Message}", nameof(TimeTrackingService));
             throw;
         }
     }

@@ -70,7 +70,7 @@ public class GoogleIntegrationService : IGoogleIntegrationService
         catch (Exception ex)
         {
             LastError = "Failed to initialize Google auth flow: " + ex.Message;
-            System.Diagnostics.Debug.WriteLine("[GoogleIntegration] Flow init error: " + ex);
+            LogHelper.Error("[GoogleIntegration] Flow init error: " + ex.Message, nameof(GoogleIntegrationService), ex.StackTrace);
             return null;
         }
 
@@ -90,13 +90,13 @@ public class GoogleIntegrationService : IGoogleIntegrationService
         {
             var err = tex.Error != null ? ($"{tex.Error.Error}: {tex.Error.ErrorDescription}") : tex.Message;
             LastError = "Token response error: " + err;
-            System.Diagnostics.Debug.WriteLine("[GoogleIntegration] Token error: " + tex);
+            LogHelper.Error("[GoogleIntegration] Token error: " + tex.Message, nameof(GoogleIntegrationService), tex.StackTrace);
             return null;
         }
         catch (Exception ex)
         {
             LastError = "Authorization failed: " + ex.Message;
-            System.Diagnostics.Debug.WriteLine("[GoogleIntegration] Auth error: " + ex);
+            LogHelper.Error("[GoogleIntegration] Auth error: " + ex.Message, nameof(GoogleIntegrationService), ex.StackTrace);
             return null;
         }
 
@@ -113,7 +113,7 @@ public class GoogleIntegrationService : IGoogleIntegrationService
         {
             // No refresh token returned & none stored – likely due to using wrong OAuth client type (should be "Desktop app")
             LastError = "No refresh token returned. Ensure the OAuth client type is 'Desktop app' and try again.";
-            System.Diagnostics.Debug.WriteLine("[GoogleIntegration] Missing refresh token after auth.");
+            LogHelper.Warn("[GoogleIntegration] Missing refresh token after auth.", nameof(GoogleIntegrationService));
         }
 
         var service = new CalendarService(new BaseClientService.Initializer
@@ -140,7 +140,7 @@ public class GoogleIntegrationService : IGoogleIntegrationService
         catch (Exception ex)
         {
             LastError = ex.Message;
-            System.Diagnostics.Debug.WriteLine("[GoogleIntegration] ConnectAsync exception: " + ex);
+            LogHelper.Error("[GoogleIntegration] ConnectAsync exception: " + ex.Message, nameof(GoogleIntegrationService), ex.StackTrace);
             return false;
         }
     }
@@ -180,7 +180,7 @@ public class GoogleIntegrationService : IGoogleIntegrationService
         catch (Exception ex)
         {
             LastError = ex.Message;
-            System.Diagnostics.Debug.WriteLine("[GoogleIntegration] TestConnectionAsync exception: " + ex);
+            LogHelper.Error("[GoogleIntegration] TestConnectionAsync exception: " + ex.Message, nameof(GoogleIntegrationService), ex.StackTrace);
             return false;
         }
     }
@@ -232,7 +232,7 @@ public class GoogleIntegrationService : IGoogleIntegrationService
         catch (Exception ex)
         {
             LastError = ex.Message;
-            System.Diagnostics.Debug.WriteLine("[GoogleIntegration] ScanCalendarAsync exception: " + ex);
+            LogHelper.Error("[GoogleIntegration] ScanCalendarAsync exception: " + ex.Message, nameof(GoogleIntegrationService), ex.StackTrace);
             return added;
         }
     }

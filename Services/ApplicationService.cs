@@ -14,6 +14,7 @@ public interface IApplicationService
     void ShowJiraTasksWindow();
     Task ShowSummaryWindow();
     void ShowTaskPrompt();
+    void ShowLogViewer();
     Task ExitApplicationAsync();
 }
 
@@ -71,7 +72,7 @@ public class ApplicationService : IApplicationService
                 }
                 catch (Exception ex)
                 {
-                    System.Diagnostics.Debug.WriteLine($"Initial JIRA refresh failed: {ex.Message}");
+                    LogHelper.Error($"Initial JIRA refresh failed: {ex.Message}", nameof(ApplicationService));
                 }
                 
                 // Kick off an initial Google scan if enabled
@@ -89,7 +90,7 @@ public class ApplicationService : IApplicationService
                 }
                 catch (Exception ex)
                 {
-                    System.Diagnostics.Debug.WriteLine($"Initial Google scan failed: {ex.Message}");
+                    LogHelper.Error($"Initial Google scan failed: {ex.Message}", nameof(ApplicationService));
                 }
                 
                 var isWithinHours = timeTrackingService.IsWithinTrackingHours(
@@ -214,7 +215,7 @@ public class ApplicationService : IApplicationService
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"Error initializing Summary window data: {ex.Message}");
+                LogHelper.Error($"Error initializing Summary window data: {ex.Message}", nameof(ApplicationService));
             }
             
             window.ShowDialog();
@@ -250,13 +251,13 @@ public class ApplicationService : IApplicationService
                 {
                     try
                     {
-                        System.Diagnostics.Debug.WriteLine($"Task selected: {e.SelectedTask.Summary} (ID: {e.SelectedTask.Id})");
+                        LogHelper.Info($"Task selected: {e.SelectedTask.Summary} (ID: {e.SelectedTask.Id})", nameof(ApplicationService));
                         // Task selection and switching is already handled by the viewmodel
                         // Just log the selection
                     }
                     catch (Exception ex)
                     {
-                        System.Diagnostics.Debug.WriteLine($"Error in TaskSelected event handler: {ex.Message}");
+                        LogHelper.Error($"Error in TaskSelected event handler: {ex.Message}", nameof(ApplicationService));
                         System.Windows.MessageBox.Show(
                             $"Error handling task selection:\n\n{ex.Message}\n\nStack trace:\n{ex.StackTrace}",
                             "Task Selection Error",
@@ -273,7 +274,7 @@ public class ApplicationService : IApplicationService
                     }
                     catch (Exception ex)
                     {
-                        System.Diagnostics.Debug.WriteLine($"Error starting lunch break: {ex.Message}");
+                        LogHelper.Error($"Error starting lunch break: {ex.Message}", nameof(ApplicationService));
                     }
                 };
 
@@ -285,12 +286,12 @@ public class ApplicationService : IApplicationService
                         using var timeScope = _serviceProvider.CreateScope();
                         var timeService = timeScope.ServiceProvider.GetRequiredService<ITimeTrackingService>();
                         var activeEntry = await timeService.GetActiveTimeEntryAsync();
-                        System.Diagnostics.Debug.WriteLine("Task prompt timed out");
+                        LogHelper.Info("Task prompt timed out", nameof(ApplicationService));
                         // Continue silently with existing active task
                     }
                     catch (Exception ex)
                     {
-                        System.Diagnostics.Debug.WriteLine($"Error in PromptTimedOut handler: {ex.Message}");
+                        LogHelper.Error($"Error in PromptTimedOut handler: {ex.Message}", nameof(ApplicationService));
                     }
                 };
 
@@ -305,6 +306,24 @@ public class ApplicationService : IApplicationService
                 "Task Prompt Error",
                 System.Windows.MessageBoxButton.OK,
                 System.Windows.MessageBoxImage.Error);
+        }
+    }
+
+    public void ShowLogViewer()
+    {
+        try
+        {
+            using var scope = _serviceProvider.CreateScope();
+            var vm = scope.ServiceProvider.GetRequiredService<LogViewerViewModel>();
+            var win = new LogViewerWindow(vm)
+            {
+                Owner = System.Windows.Application.Current.Windows.OfType<System.Windows.Window>().FirstOrDefault(w => w.IsActive)
+            };
+            win.Show();
+        }
+        catch (Exception ex)
+        {
+            System.Windows.MessageBox.Show($"Error opening Log Viewer:\n\n{ex.Message}", "Log Viewer Error", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
         }
     }
 
@@ -323,17 +342,17 @@ public class ApplicationService : IApplicationService
             // Refresh tasks from JIRA
             await taskManagementService.RefreshTasksFromJiraAsync();
             
-            System.Diagnostics.Debug.WriteLine("Data updated from JIRA");
+            LogHelper.Info("Data updated from JIRA", nameof(ApplicationService));
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"Error updating data: {ex.Message}");
+            LogHelper.Error($"Error updating data: {ex.Message}", nameof(ApplicationService));
         }
     }
 
     private void OnLunchBreakEnded(object? sender, EventArgs e)
     {
-        System.Diagnostics.Debug.WriteLine("Lunch break ended");
+    LogHelper.Info("Lunch break ended", nameof(ApplicationService));
         
         // Show task prompt to resume work
         _ = Task.Run(async () =>
@@ -361,17 +380,17 @@ public class ApplicationService : IApplicationService
             var end = start.AddDays(11);
 
             var added = await google.ScanCalendarAsync(start, end);
-            System.Diagnostics.Debug.WriteLine($"Google scan complete, tasks added: {added}");
+            LogHelper.Info($"Google scan complete, tasks added: {added}", nameof(ApplicationService));
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"Error during Google calendar scan: {ex.Message}");
+            LogHelper.Error($"Error during Google calendar scan: {ex.Message}", nameof(ApplicationService));
         }
     }
 
     private async void OnTrackingStarted(object? sender, EventArgs e)
     {
-        System.Diagnostics.Debug.WriteLine("Tracking started for the day");
+    LogHelper.Info("Tracking started for the day", nameof(ApplicationService));
         
         // Show task prompt to start the day
         await Task.Delay(2000);
@@ -380,7 +399,7 @@ public class ApplicationService : IApplicationService
 
     private async void OnTrackingEnded(object? sender, EventArgs e)
     {
-        System.Diagnostics.Debug.WriteLine("Tracking ended for the day");
+    LogHelper.Info("Tracking ended for the day", nameof(ApplicationService));
         
         // Stop any active tracking
         using var scope = _serviceProvider.CreateScope();
@@ -405,7 +424,7 @@ public class ApplicationService : IApplicationService
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"Error during application exit: {ex.Message}");
+            LogHelper.Error($"Error during application exit: {ex.Message}", nameof(ApplicationService));
             // Force exit even if there's an error
             System.Windows.Application.Current.Shutdown();
         }
