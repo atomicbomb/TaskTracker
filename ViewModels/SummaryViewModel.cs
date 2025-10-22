@@ -151,8 +151,7 @@ public class SummaryViewModel : ViewModelBase
         CloseCommand = new RelayCommand(Close);
         AddEntryCommand = new AsyncRelayCommand(OpenAddEntryDialog, () => !_isLoading);
 
-        // Don't load data immediately in constructor to avoid blocking UI
-        // Data will be loaded when window is shown or user interactions trigger it
+        // Don't load data immediately in constructor
     }
 
     /// <summary>
@@ -310,6 +309,21 @@ public class SummaryViewModel : ViewModelBase
         catch (Exception ex)
         {
             StatusMessage = $"Failed to update times: {ex.Message}";
+            return null;
+        }
+    }
+
+    public async Task<TimeEntry?> UpdateTimeEntryCommentAsync(TimeEntry entry, string? comment)
+    {
+        try
+        {
+            await _timeTrackingService.UpdateTimeEntryCommentAsync(entry.Id, comment);
+            var updated = await _timeTrackingService.GetTimeEntryByIdAsync(entry.Id);
+            return updated;
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"Failed to update comment: {ex.Message}";
             return null;
         }
     }
@@ -559,23 +573,25 @@ public class SummaryViewModel : ViewModelBase
                 var endDate = SelectedView == "Weekly" ? SelectedDate.AddDays(7) : SelectedDate.AddDays(1);
                 var entries = await _timeTrackingService.GetTimeEntriesAsync(SelectedDate, endDate);
 
-                var csvContent = "Date,Start Time,End Time,Duration (Minutes),Project,Task,Summary\n";
+                var csvContent = "Date,Start Time,End Time,Duration (Minutes),Project,Task,Summary,Comment\n";
                 
                 foreach (var entry in entries.OrderBy(e => e.StartTime))
                 {
+                    var safeSummary = entry.Task.Summary.Replace("\"", "\"\"");
+                    var safeComment = (entry.Comment ?? string.Empty).Replace("\"", "\"\"");
                     var line = $"{entry.StartTime:yyyy-MM-dd}," +
                               $"{entry.StartTime:HH:mm}," +
                               $"{entry.EndTime:HH:mm}," +
                               $"{(int)(entry.Duration?.TotalMinutes ?? 0)}," +
                               $"\"{entry.Task.Project.ProjectName}\"," +
                               $"\"{entry.Task.JiraTaskNumber}\"," +
-                              $"\"{entry.Task.Summary.Replace("\"", "\"\"")}\"\n";
+                              $"\"{safeSummary}\"," +
+                              $"\"{safeComment}\"\n";
                     csvContent += line;
                 }
 
                 await System.IO.File.WriteAllTextAsync(saveDialog.FileName, csvContent);
-                StatusMessage = $"Exported {entries.Count} entries to {System.IO.Path.GetFileName(saveDialog.FileName)}";
-
+                StatusMessage = $"Exported {entries.Count} entries";
                 System.Windows.MessageBox.Show(
                     $"Successfully exported {entries.Count} time entries to:\n{saveDialog.FileName}",
                     "Export Complete",
@@ -615,7 +631,6 @@ public class SummaryViewModel : ViewModelBase
             StatusMessage = "Task number cannot be empty.";
             return (false, null);
         }
-
         try
         {
             IsLoading = true;
@@ -715,6 +730,8 @@ public class AddTimeEntryViewModel : ViewModelBase
         public string StartTimeText { get => _startTimeText; set { if (SetProperty(ref _startTimeText, value)) (SaveCommand as AsyncRelayCommand)?.RaiseCanExecuteChanged(); } }
         private string _endTimeText = string.Empty;
         public string EndTimeText { get => _endTimeText; set { if (SetProperty(ref _endTimeText, value)) (SaveCommand as AsyncRelayCommand)?.RaiseCanExecuteChanged(); } }
+        private string? _comment;
+        public string? Comment { get => _comment; set => SetProperty(ref _comment, value); }
 
         public string? Error { get; set; }
         public JiraTask? ResolvedTask { get; private set; }
@@ -722,7 +739,7 @@ public class AddTimeEntryViewModel : ViewModelBase
 
         public ICommand SaveCommand { get; }
         public ICommand CancelCommand { get; }
-        public event EventHandler<bool>? CloseRequested; // bool = dialog result
+        public event EventHandler<bool>? CloseRequested;
 
         private bool TryParseTimes(out DateTime start, out DateTime end)
         {
@@ -734,10 +751,7 @@ public class AddTimeEntryViewModel : ViewModelBase
             return end > start;
         }
 
-        private bool CanSave()
-        {
-            return !string.IsNullOrWhiteSpace(TaskNumber) && TryParseTimes(out _, out _);
-        }
+        private bool CanSave() => !string.IsNullOrWhiteSpace(TaskNumber) && TryParseTimes(out _, out _);
 
         private async Task SaveAsync()
         {
@@ -757,7 +771,7 @@ public class AddTimeEntryViewModel : ViewModelBase
                     task = await _taskManagementService.AddManualTaskAsync(project.Id, $"Manual entry {TaskNumber}");
                 }
                 ResolvedTask = task;
-                var entry = await _timeTrackingService.CreateManualClosedEntryAsync(task.Id, start, end);
+                var entry = await _timeTrackingService.CreateManualClosedEntryAsync(task.Id, start, end, Comment);
                 CreatedEntry = await _timeTrackingService.GetTimeEntryByIdAsync(entry.Id);
                 CloseRequested?.Invoke(this, true);
             }

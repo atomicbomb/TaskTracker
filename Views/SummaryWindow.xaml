@@ -372,13 +372,11 @@
                              RowStyle="{StaticResource LunchRowStyle}"
                              CellEditEnding="EntriesGrid_CellEditEnding"
                              LoadingRow="EntriesGrid_LoadingRow">
-                        
                         <DataGrid.Columns>
                             <DataGridTextColumn Header="Date" 
                                                Binding="{Binding StartTime, StringFormat='{}{0:MM/dd/yyyy}'}"
                                                Width="100"
                                                IsReadOnly="True" />
-                            
                             <DataGridTemplateColumn Header="Start" Width="100">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
@@ -391,7 +389,6 @@
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellEditingTemplate>
                             </DataGridTemplateColumn>
-
                             <DataGridTemplateColumn Header="End" Width="100">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
@@ -410,17 +407,14 @@
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellEditingTemplate>
                             </DataGridTemplateColumn>
-                            
                             <DataGridTextColumn Header="Duration" 
                                                Binding="{Binding DurationMinutes, StringFormat='{}{0} min'}"
                                                Width="80"
                                                IsReadOnly="True" />
-                            
                             <DataGridTextColumn Header="Project" 
                                                Binding="{Binding Task.Project.ProjectName}"
                                                Width="120"
                                                IsReadOnly="True" />
-                            
                             <DataGridTemplateColumn Header="Task #" Width="140">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
@@ -429,17 +423,26 @@
                                 </DataGridTemplateColumn.CellTemplate>
                                 <DataGridTemplateColumn.CellEditingTemplate>
                                     <DataTemplate>
-                                        <!-- OneWay to avoid mutating the shared JiraTask instance; we apply changes in code-behind -->
                                         <TextBox Text="{Binding Task.JiraTaskNumber, Mode=OneWay}"/>
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellEditingTemplate>
                             </DataGridTemplateColumn>
-                            
                             <DataGridTextColumn Header="Summary" 
                                                Binding="{Binding Task.Summary}"
                                                Width="*"
                                                IsReadOnly="True" />
-
+                            <DataGridTemplateColumn Header="Comment" Width="*">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding Comment}" TextWrapping="Wrap" />
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                                <DataGridTemplateColumn.CellEditingTemplate>
+                                    <DataTemplate>
+                                        <TextBox Text="{Binding Comment, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" AcceptsReturn="True" TextWrapping="Wrap" />
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellEditingTemplate>
+                            </DataGridTemplateColumn>
                             <!-- Delete Column -->
                             <DataGridTemplateColumn Header="" Width="60">
                                 <DataGridTemplateColumn.CellTemplate>

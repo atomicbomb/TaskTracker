@@ -7,22 +7,23 @@ namespace TaskTracker.Services;
 public interface ITimeTrackingService
 {
     Task<TimeEntry?> GetActiveTimeEntryAsync();
-    Task StartTrackingAsync(int taskId);
-    Task StopTrackingAsync();
-    Task SwitchTaskAsync(int newTaskId);
+    Task StartTrackingAsync(int taskId, string? comment = null);
+    Task StopTrackingAsync(string? comment = null);
+    Task SwitchTaskAsync(int newTaskId, string? comment = null);
     Task<List<TimeEntry>> GetTimeEntriesForDateAsync(DateOnly date);
     Task<List<TimeEntry>> GetTimeEntriesAsync(DateTime startDate, DateTime endDate);
     Task<TimeEntry?> GetLastTimeEntryAsync();
     Task UpdateTimeEntryTaskAsync(int timeEntryId, int newTaskId);
     Task UpdateTimeEntryTimesAsync(int timeEntryId, DateTime newStart, DateTime? newEnd);
+    Task UpdateTimeEntryCommentAsync(int timeEntryId, string? comment);
     Task<TimeEntry?> GetTimeEntryByIdAsync(int id);
     Task DeleteTimeEntryAsync(int id);
     bool IsWithinTrackingHours(TimeOnly currentTime, string startTime, string endTime);
     TimeOnly ParseTimeString(string timeString);
-    Task<TimeEntry> CreateLunchTimeEntryAsync(DateTime start, DateTime end, JiraTask lunchTask);
-    Task<int> CreateOpenTimeEntryAsync(int taskId, DateTime start);
-    Task UpdateTimeEntryEndAsync(int timeEntryId, DateTime end);
-    Task<TimeEntry> CreateManualClosedEntryAsync(int taskId, DateTime start, DateTime end);
+    Task<TimeEntry> CreateLunchTimeEntryAsync(DateTime start, DateTime end, JiraTask lunchTask, string? comment = null);
+    Task<int> CreateOpenTimeEntryAsync(int taskId, DateTime start, string? comment = null);
+    Task UpdateTimeEntryEndAsync(int timeEntryId, DateTime end, string? comment = null);
+    Task<TimeEntry> CreateManualClosedEntryAsync(int taskId, DateTime start, DateTime end, string? comment = null);
 }
 
 public class TimeTrackingService : ITimeTrackingService
@@ -47,7 +48,7 @@ public class TimeTrackingService : ITimeTrackingService
             .FirstOrDefaultAsync();
     }
 
-    public async Task StartTrackingAsync(int taskId)
+    public async Task StartTrackingAsync(int taskId, string? comment = null)
     {
         try
         {
@@ -65,7 +66,8 @@ public class TimeTrackingService : ITimeTrackingService
             {
                 TaskId = taskId,
                 StartTime = DateTime.Now,
-                Date = DateOnly.FromDateTime(DateTime.Now)
+                Date = DateOnly.FromDateTime(DateTime.Now),
+                Comment = comment
             };
             LogHelper.Debug($"Adding time entry for task {taskId} at {timeEntry.StartTime}", nameof(TimeTrackingService));
             db.TimeEntries.Add(timeEntry);
@@ -79,7 +81,7 @@ public class TimeTrackingService : ITimeTrackingService
         }
     }
 
-    public async Task StopTrackingAsync()
+    public async Task StopTrackingAsync(string? comment = null)
     {
         try
         {
@@ -94,6 +96,7 @@ public class TimeTrackingService : ITimeTrackingService
             {
                 LogHelper.Debug($"Stopping active time entry for task {activeEntry.TaskId}", nameof(TimeTrackingService));
                 activeEntry.EndTime = DateTime.Now;
+                if (comment != null) activeEntry.Comment = comment; // optional override
                 await db.SaveChangesAsync();
                 LogHelper.Debug("Active time entry stopped successfully", nameof(TimeTrackingService));
             }
@@ -109,7 +112,7 @@ public class TimeTrackingService : ITimeTrackingService
         }
     }
 
-    public async Task SwitchTaskAsync(int newTaskId)
+    public async Task SwitchTaskAsync(int newTaskId, string? comment = null)
     {
         using var db = _dbContextFactory.CreateDbContext();
         var activeEntry = await db.TimeEntries
@@ -130,10 +133,11 @@ public class TimeTrackingService : ITimeTrackingService
             if (trackedActive != null)
             {
                 trackedActive.EndTime = DateTime.Now;
+                if (comment != null) trackedActive.Comment = comment; // optional end comment
                 await db.SaveChangesAsync();
             }
         }
-        await StartTrackingAsync(newTaskId);
+        await StartTrackingAsync(newTaskId, comment);
     }
 
     public async Task<List<TimeEntry>> GetTimeEntriesForDateAsync(DateOnly date)
@@ -216,6 +220,15 @@ public class TimeTrackingService : ITimeTrackingService
         await db.SaveChangesAsync();
     }
 
+    public async Task UpdateTimeEntryCommentAsync(int timeEntryId, string? comment)
+    {
+        using var db = _dbContextFactory.CreateDbContext();
+        var entry = await db.TimeEntries.FirstOrDefaultAsync(te => te.Id == timeEntryId)
+                    ?? throw new InvalidOperationException($"Time entry {timeEntryId} not found");
+        entry.Comment = comment;
+        await db.SaveChangesAsync();
+    }
+
     public async Task DeleteTimeEntryAsync(int id)
     {
         using var db = _dbContextFactory.CreateDbContext();
@@ -225,7 +238,7 @@ public class TimeTrackingService : ITimeTrackingService
         await db.SaveChangesAsync();
     }
 
-    public async Task<TimeEntry> CreateLunchTimeEntryAsync(DateTime start, DateTime end, JiraTask lunchTask)
+    public async Task<TimeEntry> CreateLunchTimeEntryAsync(DateTime start, DateTime end, JiraTask lunchTask, string? comment = null)
     {
         if (end <= start) throw new ArgumentException("Lunch end must be after start");
 
@@ -252,14 +265,15 @@ public class TimeTrackingService : ITimeTrackingService
             TaskId = task.Id,
             StartTime = start,
             EndTime = end,
-            Date = DateOnly.FromDateTime(start)
+            Date = DateOnly.FromDateTime(start),
+            Comment = comment
         };
         db.TimeEntries.Add(entry);
         await db.SaveChangesAsync();
         return entry;
     }
 
-    public async Task<int> CreateOpenTimeEntryAsync(int taskId, DateTime start)
+    public async Task<int> CreateOpenTimeEntryAsync(int taskId, DateTime start, string? comment = null)
     {
         using var db = _dbContextFactory.CreateDbContext();
         var entry = new TimeEntry
@@ -267,23 +281,25 @@ public class TimeTrackingService : ITimeTrackingService
             TaskId = taskId,
             StartTime = start,
             Date = DateOnly.FromDateTime(start),
-            EndTime = null
+            EndTime = null,
+            Comment = comment
         };
         db.TimeEntries.Add(entry);
         await db.SaveChangesAsync();
         return entry.Id;
     }
 
-    public async Task UpdateTimeEntryEndAsync(int timeEntryId, DateTime end)
+    public async Task UpdateTimeEntryEndAsync(int timeEntryId, DateTime end, string? comment = null)
     {
         using var db = _dbContextFactory.CreateDbContext();
         var entry = await db.TimeEntries.FirstOrDefaultAsync(te => te.Id == timeEntryId) ?? throw new InvalidOperationException($"Time entry {timeEntryId} not found");
         if (end <= entry.StartTime) throw new ArgumentException("End must be after start");
         entry.EndTime = end;
+        if (comment != null) entry.Comment = comment;
         await db.SaveChangesAsync();
     }
 
-    public async Task<TimeEntry> CreateManualClosedEntryAsync(int taskId, DateTime start, DateTime end)
+    public async Task<TimeEntry> CreateManualClosedEntryAsync(int taskId, DateTime start, DateTime end, string? comment = null)
     {
         if (end <= start) throw new ArgumentException("End must be after start");
         using var db = _dbContextFactory.CreateDbContext();
@@ -296,7 +312,8 @@ public class TimeTrackingService : ITimeTrackingService
             TaskId = taskId,
             StartTime = start,
             EndTime = end,
-            Date = DateOnly.FromDateTime(start)
+            Date = DateOnly.FromDateTime(start),
+            Comment = comment
         };
         db.TimeEntries.Add(entry);
         await db.SaveChangesAsync();

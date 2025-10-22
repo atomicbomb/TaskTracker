@@ -22,6 +22,9 @@ public class TimeEntry
     [ForeignKey("TaskId")]
     public virtual JiraTask Task { get; set; } = null!;
     
+    // Optional user comment
+    public string? Comment { get; set; }
+    
     // Calculated property for duration
     [NotMapped]
     public TimeSpan? Duration => EndTime.HasValue ? EndTime.Value - StartTime : null;
