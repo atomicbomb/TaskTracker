@@ -21,6 +21,7 @@ public class TaskPromptViewModel : ViewModelBase
     private bool _isManualMode;
     private int _lunchDuration;
     private string _manualSummary = string.Empty;
+    private string? _comment; // new comment field
     private System.Windows.Threading.DispatcherTimer? _timeoutTimer;
 
     public TaskPromptViewModel(
@@ -125,6 +126,12 @@ public class TaskPromptViewModel : ViewModelBase
                 (ConfirmCommand as AsyncRelayCommand)?.RaiseCanExecuteChanged();
             }
         }
+    }
+
+    public string? Comment
+    {
+        get => _comment;
+        set => SetProperty(ref _comment, value);
     }
 
     // Commands
@@ -234,19 +241,21 @@ public class TaskPromptViewModel : ViewModelBase
 
                 // Create a manual task under the selected project and switch to it
                 var manualTask = await _taskManagementService.AddManualTaskAsync(SelectedProject.Id, ManualSummary);
-                await _timeTrackingService.SwitchTaskAsync(manualTask.Id);
+                await _timeTrackingService.SwitchTaskAsync(manualTask.Id, Comment);
                 TaskSelected?.Invoke(this, new TaskSelectedEventArgs(manualTask));
+                Comment = string.Empty; // clear after use
             }
             else if (SelectedTask != null)
             {
                 LogHelper.Info($"Switching to task: {SelectedTask.Summary} (ID: {SelectedTask.Id})", nameof(TaskPromptViewModel));
                 
                 // Switch to the selected task
-                await _timeTrackingService.SwitchTaskAsync(SelectedTask.Id);
+                await _timeTrackingService.SwitchTaskAsync(SelectedTask.Id, Comment);
                 LogHelper.Debug("Task switch completed successfully", nameof(TaskPromptViewModel));
                 
                 TaskSelected?.Invoke(this, new TaskSelectedEventArgs(SelectedTask));
                 LogHelper.Debug("TaskSelected event fired", nameof(TaskPromptViewModel));
+                Comment = string.Empty;
             }
             else
             {
